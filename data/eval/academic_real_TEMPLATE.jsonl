@@ -1,0 +1,3 @@
+{"id": "r01", "question": "FILL IN after the real academic calendar is indexed", "answerable": true, "expected_sources": ["<exact filename from Drive>"], "expected_facts": ["<short fact copied from the document>"], "category": "calendar"}
+{"id": "r02", "question": "FILL IN from the real student handbook", "answerable": true, "expected_sources": ["<exact filename from Drive>"], "expected_facts": ["<short fact>"], "category": "handbook"}
+{"id": "r03", "question": "FILL IN a question the real documents do NOT answer", "answerable": false, "expected_sources": [], "expected_facts": [], "category": "unanswerable"}

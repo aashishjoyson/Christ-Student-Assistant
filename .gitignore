@@ -1,0 +1,60 @@
+# Secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.p12
+client_secret*.json
+credentials*.json
+*service-account*.json
+*service_account*.json
+token.json
+drive-token.json
+
+# Runtime data (databases, vectors, traces, simulated emails, eval output)
+storage/
+*.db
+*.sqlite
+*.sqlite3
+mlruns/
+mlflow.db
+
+# Model artefacts
+adapters/
+outputs/
+*.safetensors
+*.bin
+*.pt
+*.gguf
+
+# Private documents (keep real university documents in Drive only)
+data/private/
+data/peft/*.jsonl
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Editors / OS / tools
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
+
+# Packaging output
+*.zip

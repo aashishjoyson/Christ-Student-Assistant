@@ -1,0 +1,11 @@
+application_id,full_name,registered_email,programme,application_status,status_days_ago,interview_offset_days,interview_local_time,interview_mode,interview_location,interviewer_label,interview_status,notes
+CUAPP-DEMO-0001,Aarav Demo-Sharma,aarav.demo@example.com,MSc Data Science (synthetic),interview_scheduled,2,3,10:30,online,https://meet.example.com/demo-ds-0001,Panel A (synthetic),scheduled,SYNTHETIC record for demos
+CUAPP-DEMO-0002,Diya Demo-Nair,diya.demo@example.com,MBA (synthetic),interview_scheduled,1,5,14:00,in_person,Demo Block Room 101 (synthetic),Panel B (synthetic),scheduled,SYNTHETIC record for demos
+CUAPP-DEMO-0003,Kabir Demo-Rao,kabir.demo@example.com,BSc Computer Science (synthetic),under_review,4,,,,,,,SYNTHETIC record - no interview yet
+CUAPP-DEMO-0004,Meera Demo-Iyer,meera.demo@example.com,MA English (synthetic),shortlisted,3,7,11:00,online,https://meet.example.com/demo-en-0004,Panel C (synthetic),rescheduled,SYNTHETIC record - rescheduled interview
+CUAPP-DEMO-0005,Rohan Demo-Das,rohan.demo@example.com,MSc Data Science (synthetic),offer_made,10,-5,09:30,online,https://meet.example.com/demo-ds-0005,Panel A (synthetic),completed,SYNTHETIC record - interview completed
+CUAPP-DEMO-0006,Sana Demo-Khan,sana.demo@example.com,MBA (synthetic),interview_scheduled,2,2,16:30,in_person,Demo Block Room 204 (synthetic),Panel B (synthetic),cancelled,SYNTHETIC record - interview cancelled
+CUAPP-DEMO-0007,Vikram Demo-Pillai,vikram.demo@example.com,BCom (synthetic),submitted,0,,,,,,,SYNTHETIC record - just submitted
+CUAPP-DEMO-0008,Ananya Demo-Menon,ananya.demo@example.com,MSc Psychology (synthetic),waitlisted,6,-2,15:00,in_person,Demo Block Room 110 (synthetic),Panel D (synthetic),completed,SYNTHETIC record - waitlisted
+CUAPP-DEMO-0009,Ishaan Demo-Gupta,ishaan.demo@example.com,BSc Computer Science (synthetic),not_selected,12,,,,,,,SYNTHETIC record - not selected
+CUAPP-DEMO-0010,Nisha Demo-Thomas,nisha.demo@example.com,MA Economics (synthetic),interview_scheduled,1,4,12:00,online,https://meet.example.com/demo-ec-0010,Panel C (synthetic),scheduled,SYNTHETIC record for demos

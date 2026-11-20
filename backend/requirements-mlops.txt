@@ -1,0 +1,4 @@
+# Optional: MLflow tracking for evaluation runs (Phase 7). The app works without it.
+# MLflow >= 3.7 defaults to a SQLite backend; set MLFLOW_TRACKING_URI=sqlite:///storage/mlflow.db
+-r requirements.txt
+mlflow>=3.7,<4
