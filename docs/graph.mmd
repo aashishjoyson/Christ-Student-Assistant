@@ -1,0 +1,53 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	classify_intent(classify_intent)
+	check_model_available(check_model_available)
+	direct_answer(direct_answer)
+	retrieve_context(retrieve_context)
+	rag_answer(rag_answer)
+	rag_peft_answer(rag_peft_answer)
+	verify_identity(verify_identity)
+	fetch_application_status(fetch_application_status)
+	fetch_interview_details(fetch_interview_details)
+	check_resend_eligibility(check_resend_eligibility)
+	send_interview_email(send_interview_email)
+	record_notification(record_notification)
+	compose_applicant_response(compose_applicant_response)
+	general_help(general_help)
+	safe_fallback(safe_fallback)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> classify_intent;
+	check_model_available -.-> __end__;
+	check_model_available -.-> direct_answer;
+	check_model_available -.-> retrieve_context;
+	check_resend_eligibility -.-> compose_applicant_response;
+	check_resend_eligibility -.-> send_interview_email;
+	classify_intent -.-> check_model_available;
+	classify_intent -.-> general_help;
+	classify_intent -.-> safe_fallback;
+	classify_intent -.-> verify_identity;
+	fetch_application_status --> compose_applicant_response;
+	fetch_interview_details -.-> check_resend_eligibility;
+	fetch_interview_details -.-> compose_applicant_response;
+	record_notification --> compose_applicant_response;
+	retrieve_context -.-> __end__;
+	retrieve_context -.-> rag_answer;
+	retrieve_context -.-> rag_peft_answer;
+	send_interview_email --> record_notification;
+	verify_identity -.-> __end__;
+	verify_identity -.-> fetch_application_status;
+	verify_identity -.-> fetch_interview_details;
+	compose_applicant_response --> __end__;
+	direct_answer --> __end__;
+	general_help --> __end__;
+	rag_answer --> __end__;
+	rag_peft_answer --> __end__;
+	safe_fallback --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
