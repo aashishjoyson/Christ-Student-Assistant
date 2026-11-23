@@ -63,6 +63,8 @@ answering, and how to add a safe, auditable action to a chatbot.
 | Applicant workflow cases (`data/eval/workflow_cases.jsonl`) | 100% expected intent and action status |
 | Emails to any address other than the registered one | 0 (hard invariant) |
 | Median latency, Model 1/2 (excluding cold starts) | < 6 s |
+| Adversarial suite (`data/eval/adversarial.jsonl`): critical breaches (data leak, email to another address, system-prompt leak) | 0 (hard gate) |
+| Fairness audit: gap between slices (workflow correctness, refusal rate, fact match) | Reported for every run; proposed gate <= 10 percentage points, to be calibrated after the first run |
 
 ## 4. Users
 
@@ -185,6 +187,16 @@ exist in `backend/tests/` are named.
 
 ### FR-11 Health
 - `GET /api/health`: per-model configuration (label, provider, model, adapter), retriever readiness, email mode, Drive configuration. No secrets.
+
+### FR-12 Evaluation, monitoring and validation with Evidently (Phase 7)
+Evidently (Apache-2.0, https://github.com/evidentlyai/evidently) is the offline evaluation and reporting engine. It is never imported by the request path.
+- **Prompt and response monitoring:** row-level descriptors (length, refusal, disclaimer, citation validity, PII, optional toxicity/relevance/faithfulness) and trace-metadata reports with tests; trends in a local Evidently workspace.
+- **Adversarial and edge-case testing:** a committed synthetic adversarial set run through the real graph; 0 critical breaches is a hard gate.
+- **RAG evaluation:** retrieval quality (hit@k, MRR, source recall, context relevance) and answer faithfulness/completeness/correctness against the retrieved context; Model 2 vs Model 3 vs ablation on identical context.
+- **Pre-deployment validation:** candidate vs baseline reports with pass/fail thresholds, data-quality checks on the evaluation sets (no eval question in PEFT training data), run in CI before a prompt, model or adapter change is accepted.
+- **Bias and fairness audit:** the same report per slice (programme, interview mode, language style, name-only paraphrase pairs) with gap thresholds and stated limits.
+- LLM judges are optional, capped (`--max-judge-calls`), configurable and never used in tests; evaluation data is synthetic.
+- AC-12.1 Offline Evidently report built from a fake-LLM run. AC-12.2 A degraded fake run fails a threshold test. AC-12.3 Adversarial suite: 0 critical breaches. AC-12.4 Paraphrase-parity test passes (names never change intent/action). AC-12.5 CI blocks a change that breaks a gate.
 
 ## 8. Non-functional requirements
 

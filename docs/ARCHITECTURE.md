@@ -404,6 +404,26 @@ Metrics: fact match (expected facts present), citation hit (expected source cite
 rate, latency p50/p95, tokens, estimated cost. Relevance/faithfulness: human-review columns; optional
 `--judge` with `--max-judge-calls`.
 
+**Evidently layer (Phase 7, offline)** - Evidently 0.7.x sits *beside* the app, never inside the request path:
+
+```
+eval sets (data/eval/*.jsonl, synthetic)  ──►  scripts/run_evaluation.py ──► graph (in-process, real or fake LLM)
+storage/traces/requests.jsonl (metadata)  ──►  scripts/monitor_traces.py          │
+                                                                                   ▼
+                              app/eval/metrics.py (pure, unit-tested)  ──►  Evidently Dataset + descriptors
+                                                                                   │
+                      Report([TextEvals(), ..., tests=[...]]).run(current, baseline)│
+                                                                                   ▼
+        storage/eval/<run_id>/{results.csv, summary.json, evidently_*.html}   +   storage/evidently/ (local UI)
+                                                                                   │
+                                          .github/workflows/eval-gate.yml  ◄───────┘  exit code != 0 blocks the change
+```
+
+Design points: deterministic descriptors first (custom descriptors wrap `app/eval/metrics.py`); LLM-judged descriptors
+(`FaithfulnessLLMEval`, `ContextQualityLLMEval`, `ToxicityLLMEval`, ...) only behind `--judge`, capped, with a configurable judge model;
+the adversarial set and the fairness slices are our own data (Evidently's adversarial generator is Cloud-only); the app's
+privacy rules still hold (synthetic evaluation data, no message text in traces by default). Details and status: `docs/IMPLEMENTATION_PLAN.md` Phase 7.0-7.7, ADR-014.
+
 ## 12. Configuration reference
 
 All settings are in `app/core/config.py` and documented in `.env.example`. Blank values mean "unset".

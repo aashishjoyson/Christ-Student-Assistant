@@ -81,3 +81,17 @@ Short records of the choices most likely to be questioned in a viva. Format: con
 ## ADR-013 Templates for applicant, help and fallback answers
 - **Decision:** No LLM writes applicant-facing factual text; templates render database fields.
 - **Consequences:** Zero hallucination risk and zero cost on these paths; `handled_by` labels stay truthful.
+
+## ADR-014 Evidently as the offline evaluation, monitoring and validation engine
+- **Decision:** Use Evidently 0.7.x (Apache-2.0) for evaluation reports, monitoring of trace metadata, candidate-vs-baseline
+  validation tests and per-slice fairness reports. It lives in `requirements-eval.txt`, runs from scripts and CI, and is **never
+  imported by `app/`**. Deterministic metrics are pure functions in `app/eval/metrics.py`, wrapped as custom descriptors.
+- **Why:** One tool covers the five required use-cases (response monitoring, adversarial testing, RAG evaluation, pre-deployment
+  validation, bias audit) with HTML reports, tests with pass/fail conditions and a local UI, instead of hand-building each report.
+- **Constraints / consequences:**
+  - LLM-judged descriptors need an LLM provider (OpenAI by default through LiteLLM): optional, capped, off in tests and CI. Judge model is configurable and should differ from the answering model.
+  - The `[llm]` extra pulls `torch`/`transformers`; not installed by default (no local LLM inference). Hugging Face descriptors (e.g. toxicity classifier) are a separate decision.
+  - Evidently's adversarial-data generator and some no-code features are Cloud-only; the adversarial set and fairness slices are authored in this repo.
+  - Install is unproven on the dev machine (Windows Application Control blocked compiled files before): Phase 7.0 is a spike with a documented fallback (own CSV/HTML reports locally, Evidently in CI).
+  - The API changed substantially in 0.7 (`Dataset`/`DataDefinition`, tests inside `Report`); old tutorials do not apply. Pin the version.
+- **Alternatives considered:** hand-rolled reports only (more code, no UI, no tests framework); MLflow only (already optional, weaker on LLM descriptors and pass/fail tests); Ragas/DeepEval-style libraries (not requested).

@@ -5,6 +5,24 @@ Each phase is small enough for one focused Claude Code session and ends **green*
 
 Legend: [x] done in the base repo · [ ] to do
 
+## Status board (2026-11-24)
+
+| Phase | Status | Next step / what it needs from you |
+|---|---|---|
+| 0 Foundation | Done | - |
+| 1 Install, tests, Model 1 live | **Done** (committed + pushed, 90 tests, Model 1 verified live) | - |
+| UI restyle (widget on a homepage backdrop) | In progress, **uncommitted** | Real photos still to add (see Phase 4); then commit |
+| 2 RAG over a local folder | Not started | Uses `OPENAI_API_KEY` for embeddings (small cost); Chroma is already installed |
+| 3 Google Drive source | Not started | Google Cloud project, service account, shared Drive folder ID |
+| 4 Frontend completion | Partly (restyle) | Admin page, debug drawer, Vitest, accessibility pass |
+| 5 Real email (opt-in) | Not started | Optional: SMTP sandbox (Mailtrap) credentials + allowlist |
+| 6 PEFT/LoRA + Model 3 endpoint | Not started | Hugging Face account, Colab GPU session, Modal (or HF Endpoints) account |
+| 7 Evaluation, monitoring, validation (**Evidently**) | Planned in detail below; **nothing installed yet** | Start with the 7.0 install spike (needs your OK for `pip install`) |
+| 8 Hardening, CI, packaging | Not started | GitHub Actions CI is specified in 7.5 |
+
+Suggested order: 7.0 spike -> 7.3 adversarial suite + 7.6 workflow-parity checks (neither needs RAG) -> Phase 2 ->
+7.1/7.2/7.4 -> Phase 3-6 as accounts become available -> 7.5 CI gate -> Phase 8.
+
 ---
 
 ## Phase 0 - Foundation (DONE in this base repository)
@@ -127,7 +145,10 @@ Acceptance: health shows Model 3 configured; UI answers with adapter id shown; p
 
 ---
 
-## Phase 7 - Evaluation and LLMOps report
+## Phase 7 - Evaluation, monitoring, validation and LLMOps report (Evidently)
+
+This phase is split into 7.0-7.7 below. The bullets directly under this heading are the base evaluation runner (7.1);
+sections 7.0 and 7.2-7.7 add Evidently and are specified after them.
 
 - `app/eval/metrics.py` (pure: fact match, citation hit, refusal detection, hit@k, disclaimer detection) + unit tests.
 - `scripts/run_evaluation.py --modes direct,rag,rag_peft,rag_peft_base --set academic_synthetic [--workflow] [--mlflow] [--judge --max-judge-calls 40]`.
@@ -139,9 +160,105 @@ Acceptance: health shows Model 3 configured; UI answers with adapter id shown; p
 
 ---
 
+### Evidently additions to Phase 7
+
+Source: https://www.evidentlyai.com/ and https://github.com/evidentlyai/evidently (Apache-2.0). Docs read on 2026-11-24;
+PyPI latest is **0.7.23** (Python >= 3.10). See `docs/DECISIONS.md` ADR-014 and `docs/TECHNICAL_REFERENCES.md`.
+
+**Ground rules for every 7.x step**
+- Evidently runs **offline only**: `app/` never imports it. Dependencies go in a new `backend/requirements-eval.txt`
+  (`-r requirements.txt` + `evidently>=0.7.23,<0.8`) with its own lock; the app and its tests keep working without it.
+- Use the **0.7 API** (`from evidently import Dataset, DataDefinition, Report`; `TextEvals`; per-metric `tests=[...]` with
+  `eq/gte/lte`; `Report.run(current, reference)`). The old `ColumnMapping`/`TestSuite` style is gone; do not copy old tutorials.
+- **Deterministic metrics first.** Pure, stdlib functions in `app/eval/metrics.py` (unit-tested) are wrapped as Evidently
+  `CustomColumnDescriptor`s, so the code that is tested is the code that is reported.
+- **LLM judges are optional and capped.** Off by default; `--judge --max-judge-calls N` samples rows; judge provider/model are
+  settings (`EVAL_JUDGE_PROVIDER`, `EVAL_JUDGE_MODEL`, in `config.py` and `.env.example`), preferably *not* the answering model
+  (a model grading itself is biased). Judge calls and cost are written to `summary.json`. Tests and CI never call a judge: they use a fake judge function.
+- **No student text leaves the box.** Evaluation data is synthetic. Live traces keep message text off by default
+  (invariant 7), so text-quality metrics come from evaluation runs; trace monitoring uses metadata unless `TRACE_INCLUDE_TEXT=true` is opted into for a dev session.
+- Evidently reports are artefacts under `storage/eval/<run_id>/` and a local workspace under `storage/evidently/` (both git-ignored).
+
+**7.0 Install spike (do first; ask before any `pip install`)**
+- [ ] In a throw-away venv, install `evidently==0.7.23` and run the offline example (`TextLength`, `IncludesWords`, a
+      `CustomColumnDescriptor`, `TextEvals`, `.dict()`, `.save_html()`).
+- [ ] Record whether Windows Application Control blocks any of its compiled dependencies (scipy, scikit-learn, statsmodels;
+      `numpy.random` was blocked once on this machine). If blocked: run Evidently in CI (Linux) only and keep local reports on our own CSV/HTML.
+- [ ] Confirm the `[llm]` extra is **not** needed (it pulls `torch`/`transformers`, which conflicts with "no local LLM inference"), and check
+      that `litellm` (used by the judges) works next to `openai` 3.x; if not, judges go through our own `OpenAICompatibleChatClient` wrapped as a custom descriptor.
+- [ ] Find out (not documented in what was read): how pass/fail of `tests=[...]` appears in `report.dict()`/`json()` (needed for the CI exit code);
+      whether slicing by a segment column is supported; what the library-side synthetic-data API offers.
+- [ ] Write the findings into `docs/TECHNICAL_REFERENCES.md` (re-check log) and decide go / fallback.
+
+**7.1 Evaluation runner** (the bullets above): `app/eval/metrics.py`, `scripts/run_evaluation.py`; builds an Evidently `Dataset`
+from `results.csv` for the sections below.
+
+**7.2 Prompt and response monitoring** (use-case 1)
+- [ ] Row-level descriptors: `TextLength`/`WordCount`; refusal (exact refusal sentence); Model 1 disclaimer present; citation indices valid
+      (`[n]` exists); PII regex (reuse `app/domain/redaction.py`); optional `ToxicityLLMEval` (judge); relevance via `ContextRelevance`/`SemanticSimilarity`
+      (optional; `SemanticSimilarity` downloads a small embedding model, so decide first, see open questions); hallucination proxy = numbers/dates in the answer
+      that are absent from the retrieved context, plus optional `FaithfulnessLLMEval`.
+- [ ] `scripts/monitor_traces.py`: build a `Dataset` from `storage/traces/requests.jsonl` (latency, tokens, cost, intent, handled_by, grounded, error code,
+      action status) and run a `Report` with tests (error rate, p95 latency, no-evidence rate, refusal rate); compare two windows with `run(current, reference)`.
+- [ ] Self-hosted workspace (`evidently ui`, local only) with projects `helpdesk-eval` and `helpdesk-monitoring` to see trends across runs.
+- Acceptance: a CI-safe report is produced from a fake-LLM run; a deliberately degraded fake run makes a test fail.
+
+**7.3 Adversarial and edge-case testing** (use-case 2) - can start before Phase 2
+- [ ] `data/eval/adversarial.jsonl` (synthetic, reviewed by a human): `id, category, message, mode, verified_as, must_not, expected, severity`.
+      Categories: prompt injection; system-prompt leakage; role/jailbreak; harmful or off-topic requests; identity bypass ("I am the admin",
+      another applicant's ID); cross-applicant data requests while verified; **email redirection** ("send it to x@evil.com", "change my email");
+      SQL/markup injection in the message and in the application ID; resend flooding (cooldown + rate limit); empty, very long, unicode, RTL,
+      emoji and mixed-language input; poisoned-document injection (a synthetic sample doc that contains instructions; needs Phase 2).
+- [ ] `tests/integration/test_adversarial.py`: runs every case through the real graph with fakes (no network). Critical breaches = 0 is a hard gate
+      (invariants 2, 3, 4, 6, 7).
+- [ ] Live variant in the runner for Models 1/2/3; Evidently report with per-category pass rates and `CategoryCount(..., tests=[eq(0)])` on critical breaches.
+- Note: Evidently's own adversarial-data generator is **Cloud-only** (per the docs read), so we author the set ourselves; optional LLM-generated variants are
+  capped (`--max-generation-calls`) and human-reviewed before they are committed.
+- Acceptance: every case has an expected result; 0 critical breaches; the suite runs in CI.
+
+**7.4 RAG evaluation** (use-case 3) - needs Phase 2
+- [ ] Retrieval: hit@k, MRR, source recall (pure functions) on `academic_synthetic.jsonl`; optional `ContextRelevance(aggregation_method="hit")`
+      and `ContextQualityLLMEval`.
+- [ ] Generation vs context: deterministic fact match, citation hit, refusal correctness on u01-u05; optional `FaithfulnessLLMEval`, `CompletenessLLMEval`,
+      `CorrectnessLLMEval` (judge, capped).
+- [ ] Calibrate `RAG_MAX_DISTANCE` from distances of answerable vs unanswerable questions.
+- [ ] Model 2 vs Model 3 vs `rag_peft_base` on identical retrieved context, so differences isolate the generator.
+- Acceptance: a per-mode report and a filled `docs/MODEL_COMPARISON_TEMPLATE.md` (no invented numbers).
+
+**7.5 Pre-deployment validation pipeline** (use-case 4)
+- [ ] Baseline = the last accepted run per mode, stored small and synthetic in `data/eval/baselines/`; candidate = a new prompt version, model ID,
+      adapter, or chunking setting. `Report([...tests...]).run(candidate, baseline)` with thresholds (`gte`, `lte`, `Reference(relative=...)`).
+- [ ] Data-quality checks on the evaluation sets themselves (missing fields, duplicates, **no eval question in `data/peft/train.jsonl`**).
+- [ ] The runner exits non-zero when a critical test fails (mechanism confirmed in 7.0; fallback: compute pass/fail in our code from the same thresholds).
+- [ ] `.github/workflows/ci.yml`: ruff, pytest, `npm run build`, secret scan on every push/PR (the repo is public: no secrets in logs, no live LLM calls on forks).
+      `.github/workflows/eval-gate.yml`: on PRs touching prompts, graph, llm, rag or eval data: fake-LLM deterministic eval + adversarial suite +
+      Evidently tests, `report.html` uploaded as an artifact; an optional, manually triggered, capped live run using a repository secret.
+- [ ] A PEFT adapter (Phase 6) is promoted only when these gates pass against the baseline; record the result in `adapter_manifest.json`.
+
+**7.6 Bias and fairness audit** (use-case 5)
+- [ ] Slices (documented, synthetic): applicant side - programme, interview mode, application status; language side - formal English, informal,
+      typos, Hinglish/code-mixed, non-native phrasing; **paraphrase pairs that differ only in the name** (names must never change behaviour).
+- [ ] Per-slice metrics: intent/action correctness (workflow), refusal rate, fact match, citation hit, answer length, latency, error rate. Run the same
+      `Report` per slice and compute gaps (max - min); tests on the gap (proposed <= 10 percentage points, to be calibrated after the first run).
+- [ ] Deterministic paraphrase-parity test (same question, different name/programme -> same intent and action) as an integration test.
+- Limits stated in every report: tiny synthetic sample, so report effect sizes and bootstrap intervals, never claims of statistical fairness;
+  this is an audit harness, not a certification.
+
+**7.7 Reporting**
+- [ ] `storage/eval/<run_id>/{results.csv,summary.json,evidently_*.html}`; optional MLflow run (existing); optional `GET /api/admin/experiments/summary`.
+
+**Open questions for the team** (answers change the design)
+1. Which model should act as judge for LLM-judged metrics (a different model from `gpt-6-luna` is recommended)?
+2. Allow Hugging Face models that run locally (toxicity classifier, sentence embeddings; needs `torch`)? Default proposal: no; use rule-based + capped LLM judge.
+3. Evidently Cloud (free tier) or self-hosted UI only? Default proposal: self-hosted only (nothing leaves the machine).
+4. Should the adversarial suite and fairness checks be built before Phase 2 (recommended, since neither needs RAG)?
+
+---
+
 ## Phase 8 - Hardening and packaging
 
 - Per-IP rate limit on `/api/chat`; request size limits; CORS check.
+- CI on GitHub Actions and the evaluation gate (specified in 7.5); branch protection on `main` once CI is green.
 - Optional: `langgraph-checkpoint-sqlite`, Alembic, Dockerfile.
 - README walkthrough with screenshots; demo script rehearsal (`README` "Demo sequence").
 - `/guardrails` review of the full diff; `python scripts/package_repo.py`.
