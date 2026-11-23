@@ -2,6 +2,9 @@
 # After the first successful install, freeze exact versions:  pip freeze > requirements.lock
 # Python 3.12 recommended (3.11-3.13 supported).
 
+# Windows has no system time-zone database; zoneinfo("Asia/Kolkata") needs this package there.
+tzdata>=2024.1; sys_platform == "win32"
+
 # API + settings + database
 fastapi>=0.160,<1.0
 uvicorn[standard]>=0.34,<1.0

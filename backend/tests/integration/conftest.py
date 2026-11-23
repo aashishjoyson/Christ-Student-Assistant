@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -19,7 +19,7 @@ from app.graph.deps import GraphDeps
 from app.main import create_app
 from tests.fakes import FakeChatClient, FakeRetriever, RecordingEmailProvider
 
-SEED_NOW = datetime(2026, 11, 20, 4, 0, tzinfo=timezone.utc)
+SEED_NOW = datetime(2026, 11, 20, 4, 0, tzinfo=UTC)
 SECRET = "integration-test-secret"
 
 

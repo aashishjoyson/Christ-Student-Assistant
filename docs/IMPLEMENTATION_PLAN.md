@@ -31,17 +31,22 @@ Legend: [x] done in the base repo · [ ] to do
 
 **Goal:** a working app with a real hosted model and all tests green on your machine.
 
-Tasks
-1. Create venv, install `requirements-dev.txt`, run `pytest`. The integration tests were written but could not be
-   executed in the environment that generated this repo - fix any failures (likely small API mismatches).
-   Then `pip freeze > requirements.lock`.
-2. `cd frontend && npm install && npm run build` - fix any TypeScript errors.
-3. Verify the OpenAI chat model ID on the OpenAI models page; set `OPENAI_CHAT_MODEL` in `.env`.
-   Smoke test Model 1 manually (UI) - confirm the disclaimer appears for an institutional question.
-4. If the model is a reasoning model and returns `empty_completion`, tune `LLM_MAX_OUTPUT_TOKENS` / `LLM_REASONING_EFFORT`.
-5. Run `python scripts/export_graph_diagram.py`; commit `docs/graph.mmd`.
+Tasks (status as of 2026-11-23)
+- [x] 1. Create venv, install `requirements-dev.txt`, run `pytest`; `pip freeze` -> `backend/requirements.lock`.
+      90 tests pass (60 unit + 29 integration + 1 new). Integration tests needed no changes. SQLAlchemy is pinned to
+      2.0.58 because Windows Application Control blocked 2.1.9's compiled files (see `TECHNICAL_REFERENCES.md`).
+- [x] 2. `cd frontend && npm install && npm run build` - green, no TypeScript errors.
+- [x] 3. Verify the OpenAI chat model ID (`gpt-6-luna`, checked 2026-11-23) and set it in `.env`. With the updated key,
+      Model 1 returned a real `gpt-6-luna` answer with the "not grounded" notice over HTTP (148 in / 74 out tokens,
+      ~2.2 s, ~$0.00005) and a trace line was written. A human click-through of the UI is still worth doing.
+- [x] 4. Reasoning model: no `empty_completion` occurred with the configuration in use, so no tuning was needed. The
+      recommendation (`LLM_REASONING_EFFORT=low`, `LLM_MAX_OUTPUT_TOKENS=4000`) stays as a safeguard for longer answers.
+- [x] 5. `python scripts/export_graph_diagram.py` -> `docs/graph.mmd` (15 nodes) committed.
+- [x] Also: seeded the SYNTHETIC DB (10 applicants); fixed seeding on a clean checkout (`storage/` missing);
+      ruff clean; declared `tzdata` for Windows; `check_secrets.py` tolerates a git-ignored root `.env`.
 
-Acceptance: all tests pass; `/api/health` shows Models 1/2 configured; a real Model 1 answer with notice; trace line written.
+Acceptance: all tests pass [x]; `/api/health` shows Models 1/2 configured [x]; a real Model 1 answer with notice [x];
+trace line written [x]. **Phase 1 is complete.**
 
 ---
 

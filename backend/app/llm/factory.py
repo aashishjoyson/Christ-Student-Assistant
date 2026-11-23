@@ -23,7 +23,7 @@ def build_primary_client(settings: Settings) -> ChatClient | None:
             timeout=settings.llm_timeout_seconds,
             max_retries=settings.llm_max_retries,
             max_output_tokens=settings.llm_max_output_tokens,
-            token_param="max_completion_tokens",
+            output_limit_field="max_completion_tokens",
             temperature=settings.llm_temperature,
             reasoning_effort=settings.llm_reasoning_effort,
         )
@@ -35,7 +35,7 @@ def build_primary_client(settings: Settings) -> ChatClient | None:
         timeout=settings.llm_timeout_seconds,
         max_retries=settings.llm_max_retries,
         max_output_tokens=settings.llm_max_output_tokens,
-        token_param="max_tokens",
+        output_limit_field="max_tokens",
         temperature=settings.llm_temperature,
         reasoning_effort=settings.llm_reasoning_effort,
         extra_headers={"X-Title": "CU Student Helpdesk (academic prototype)"},
@@ -58,6 +58,6 @@ def build_model3_client(settings: Settings, *, served_model: str | None = None) 
         timeout=settings.model3_timeout_seconds,
         max_retries=settings.model3_max_retries,
         max_output_tokens=settings.llm_max_output_tokens,
-        token_param="max_tokens",
+        output_limit_field="max_tokens",
         temperature=settings.model3_temperature,
     )

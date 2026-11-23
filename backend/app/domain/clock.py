@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 
 def utcnow() -> datetime:
     """Timezone-aware current UTC time."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def ensure_aware_utc(value: datetime) -> datetime:
     """Reject naive datetimes so timezone bugs fail loudly."""
     if value.tzinfo is None:
         raise ValueError("Naive datetime is not allowed; use a timezone-aware value.")
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 def format_local(value: datetime, tz_name: str) -> str:

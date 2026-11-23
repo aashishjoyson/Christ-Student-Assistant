@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.core.rate_limit import SlidingWindowLimiter
 from app.domain.masking import mask_email
 from app.domain.redaction import redact
 from app.domain.tokens import issue_token, verify_token
 
-NOW = datetime(2026, 11, 20, 6, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 11, 20, 6, 0, tzinfo=UTC)
 SECRET = b"unit-test-secret"
 
 

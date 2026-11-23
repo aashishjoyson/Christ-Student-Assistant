@@ -7,6 +7,7 @@ Run before every commit and before packaging. Stdlib only.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -39,11 +40,27 @@ def iter_files(root: Path):  # type: ignore[no-untyped-def]
             yield path
 
 
+def is_git_ignored(path: Path) -> bool:
+    """True only if git itself says the file is ignored. Fails closed (False) if git or the repo is missing."""
+    try:
+        result = subprocess.run(  # noqa: S603
+            ["git", "check-ignore", "-q", "--", str(path)],  # noqa: S607
+            cwd=ROOT, capture_output=True, check=False, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def main() -> int:
     findings: list[str] = []
     for path in iter_files(ROOT):
         rel = path.relative_to(ROOT).as_posix()
         if any(p.search(path.name) for p in FORBIDDEN_FILES):
+            # A developer's own root .env is expected. It is fine only while git ignores it (and
+            # package_repo.py excludes it by name). If .gitignore ever stops covering it, it is flagged again.
+            if rel == ".env" and is_git_ignored(path):
+                continue  # never read its contents
             findings.append(f"forbidden file: {rel}")
             continue
         if path.suffix not in TEXT_SUFFIXES or path.stat().st_size > 2_000_000:

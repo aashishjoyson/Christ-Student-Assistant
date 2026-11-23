@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.domain.notification_policy import (
     EventSnapshot,
@@ -10,7 +10,7 @@ from app.domain.notification_policy import (
     recipient_allowed,
 )
 
-NOW = datetime(2026, 11, 20, 6, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 11, 20, 6, 0, tzinfo=UTC)
 FUTURE = InterviewSnapshot(interview_id=7, status="scheduled", scheduled_at=NOW + timedelta(days=3))
 CFG = PolicyConfig(cooldown=timedelta(minutes=15), max_per_day=3)
 EMAIL = "demo.applicant@example.com"

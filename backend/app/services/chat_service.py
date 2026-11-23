@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -98,7 +98,7 @@ class ChatService:
         llm = out.get("llm") or {}
         handled_by = out.get("handled_by") or {}
         trace: dict[str, Any] = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             "message_id": message_id,
             "conversation": hash_identifier(str(conversation_id)),
             "intent": out.get("intent"),

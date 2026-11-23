@@ -33,7 +33,7 @@ class OpenAICompatibleChatClient:
         timeout: float = 30.0,
         max_retries: int = 2,
         max_output_tokens: int = 800,
-        token_param: str = "max_completion_tokens",
+        output_limit_field: str = "max_completion_tokens",
         temperature: float | None = None,
         reasoning_effort: str | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -41,7 +41,9 @@ class OpenAICompatibleChatClient:
         self.provider = provider
         self.model = model
         self._max_output_tokens = max_output_tokens
-        self._token_param = token_param
+        # Name of the request field that caps output length: OpenAI's newer models use
+        # `max_completion_tokens`; OpenRouter and vLLM use `max_tokens`.
+        self._output_limit_field = output_limit_field
         self._temperature = temperature
         self._reasoning_effort = reasoning_effort
         # The SDK retries 408/409/429/5xx and connection errors with exponential backoff.
@@ -57,7 +59,7 @@ class OpenAICompatibleChatClient:
         kwargs: dict[str, object] = {
             "model": self.model,
             "messages": messages,
-            self._token_param: self._max_output_tokens,
+            self._output_limit_field: self._max_output_tokens,
         }
         if self._temperature is not None:
             kwargs["temperature"] = self._temperature

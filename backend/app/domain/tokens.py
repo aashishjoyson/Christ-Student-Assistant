@@ -13,7 +13,7 @@ import base64
 import hashlib
 import hmac
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 TOKEN_VERSION = 1
 
@@ -27,7 +27,7 @@ def _b64d(text: str) -> bytes:
 
 
 def issue_token(applicant_id: int, secret: bytes, ttl: timedelta, now: datetime) -> tuple[str, datetime]:
-    expires_at = (now + ttl).astimezone(timezone.utc)
+    expires_at = (now + ttl).astimezone(UTC)
     payload = {"v": TOKEN_VERSION, "aid": applicant_id, "exp": int(expires_at.timestamp())}
     body = _b64e(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode())
     sig = _b64e(hmac.new(secret, body.encode(), hashlib.sha256).digest())

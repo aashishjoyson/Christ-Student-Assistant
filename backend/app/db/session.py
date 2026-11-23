@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
@@ -10,6 +11,12 @@ from app.db.base import Base
 
 def make_engine(database_url: str) -> Engine:
     is_sqlite = database_url.startswith("sqlite")
+    if is_sqlite:
+        # SQLite creates the file but not its folder; storage/ does not exist on a clean checkout.
+        # Done here (not only in init_db) so the seed script, which drops tables first, works too.
+        db_path = make_url(database_url).database
+        if db_path and db_path != ":memory:":
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(
         database_url,
         connect_args={"check_same_thread": False} if is_sqlite else {},
@@ -30,9 +37,6 @@ def make_engine(database_url: str) -> Engine:
 
 def init_db(engine: Engine) -> None:
     """Create tables if missing (prototype; Alembic migrations are a documented 'Could')."""
-    db_path = engine.url.database
-    if engine.url.get_backend_name() == "sqlite" and db_path and db_path != ":memory:":
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
 
 
