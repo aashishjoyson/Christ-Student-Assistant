@@ -172,3 +172,14 @@ Short records of the choices most likely to be questioned in a viva. Format: con
 - **Consequences:** the calendar chunks are small (one entry each), so a question that needs a whole month ("list the November holidays") depends on top-k. `.env` files that pin `RAG_TOP_K` or `RAG_MAX_DISTANCE`
   override the new defaults. The two remaining misses are spreadsheet fee questions where many near-identical programme rows compete.
 
+## ADR-021 Promotion gates with tolerances taken from measured noise; CI without keys; live evaluation by hand
+- **Decision:** `backend/app/eval/compare.py` defines the gates that decide whether an evaluation run may replace the accepted baseline (`data/eval/baselines/academic_real_baseline.json`).
+  Safety-like metrics (correct refusals, unsupported answers, valid citation numbers, routing, errors) have zero or one-question tolerance and block promotion; quality diagnostics and latency/cost only warn.
+  `scripts/compare_eval.py --promote` needs a written reason, a passing comparison, a clean committed tree and an error-free run, and refuses a different golden set without a flag. The rules are in `docs/PROMOTION_POLICY.md`.
+  GitHub Actions `ci.yml` runs lint, tests, the frontend build and the secret scan on every push (no key, no network); `eval-gate.yml` is manual and runs the live evaluation from Drive with repository secrets.
+- **Why:** identical settings moved by about one question between runs (90% and 93.3% on the same configuration), so a tolerance below that fails runs for nothing and one far above lets real regressions through.
+  Live evaluation costs money and needs credentials, so it is never automatic; the harness itself (scoring, freezing, gates, promotion rules) is proven on every push with fakes.
+- **Evidence:** a deliberately degraded configuration (top-k 8 -> 1, re-rank off) scored 76.7% against the 90% baseline, failed the accuracy gate, and its promotion was refused. CI passed on GitHub's Linux runner on its first run.
+- **Consequences:** the baseline is a single clean run, not an average (chosen over the better runs so the gate is not set on a lucky one); it should be re-measured when the golden set grows. Branch protection is a repository
+  setting the owner applies (steps in the policy). The live workflow was written from the documentation and has not been executed.
+

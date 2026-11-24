@@ -1,5 +1,23 @@
 # Build report
 
+## M3 - CI and promotion gates (2026-11-24)
+
+| Check | Result |
+|---|---|
+| `pytest` (full backend) | **462 passed** (23 new for the gates and the compare/promote command); `ruff` clean; secret scan passed |
+| GitHub Actions CI (first run on `27b7962`) | **success**: backend (lint + tests) on Linux, frontend (build + tests), secret scan |
+| Baseline | `eval-20261124-140015-4640e8`, promoted from a clean committed tree: Model 2 accuracy 90% (27/30), context recall 100%, correct refusals 8/8, unsupported 0, citation numbers valid |
+| Gate on a deliberately degraded run (top-k 1, no re-rank) | accuracy 76.7%: **FAIL** (critical), 5 warnings (context recall 0.67, citation hit, MRR, false refusals, p95), and `--promote` **refused** |
+
+**Findings**
+1. Identical settings scored 90% on one run and 93.3% on two others, so the gate tolerance is 6 points on accuracy (two questions) and the baseline is deliberately an ordinary run, not the best one.
+2. The workflows pin the current action majors (`checkout`, `setup-python`, `setup-node`, `upload-artifact` v7: looked up on 2026-11-24, not assumed). CI installs with the lock file as constraints so it matches the machine that produced it.
+3. `eval-gate.yml` (live, manual) is **untested**: it needs `OPENAI_API_KEY`, `DRIVE_SERVICE_ACCOUNT_JSON` and two variables set as repository secrets/variables. Watch its first run.
+
+**What you must do (optional but recommended):** GitHub > Settings > Branches > add a rule for `main` requiring the three CI checks (steps in `docs/PROMOTION_POLICY.md`); add the repository secrets above if you want the live gate.
+
+---
+
 ## M2 - Evaluation harness, golden set, and what it found (2026-11-24)
 
 | Check | Result |
