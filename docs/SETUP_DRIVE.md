@@ -9,7 +9,7 @@ Best for unattended polling: no browser login and no token expiry.
 
 1. Google Cloud Console -> create (or pick) a project -> **APIs & Services -> Library** -> enable **Google Drive API**.
 2. **IAM & Admin -> Service Accounts -> Create service account** (no roles needed).
-3. Open it -> **Keys -> Add key -> JSON**. Save as `secrets/drive-service-account.json`.
+3. Open it -> **Keys -> Add key -> JSON**. The browser downloads a JSON file (often called `keys.json` or `<project>-<id>.json`): **move it to `secrets/` and rename it `drive-service-account.json`**. It is a password: never paste its contents anywhere and never leave it outside `secrets/`.
 4. Copy the service account email (`...@<project>.iam.gserviceaccount.com`).
 5. In Google Drive, open your helpdesk folder -> **Share** -> add that email as **Viewer**.
 6. Copy the folder ID from its URL (`https://drive.google.com/drive/folders/<FOLDER_ID>`).
@@ -43,7 +43,8 @@ to production removes the limit but may require verification for restricted scop
 
 ## Supported files
 
-PDF, DOCX, TXT, Markdown, and Google Docs (exported to DOCX). Anything else is listed with status `unsupported`.
+PDF, DOCX, XLSX, CSV, TXT, Markdown, Google Docs (exported to DOCX) and Google Sheets (exported to XLSX). Anything else is listed with status `unsupported`.
+Files whose name starts with `SYNTHETIC_` are placeholders and are never indexed unless `LOCAL_DOCS_INCLUDE_SYNTHETIC=true`.
 Shortcuts and sub-folders are ignored in v1. Trashed files are treated as deleted.
 
 ## Troubleshooting

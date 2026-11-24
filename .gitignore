@@ -11,6 +11,9 @@ credentials*.json
 *service_account*.json
 token.json
 drive-token.json
+keys.json
+**/keys.json
+*-service-account*.json
 
 # Runtime data (databases, vectors, traces, simulated emails, eval output)
 storage/

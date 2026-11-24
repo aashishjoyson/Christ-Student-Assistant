@@ -20,8 +20,31 @@ Legend: [x] done in the base repo · [ ] to do
 | 7 Evaluation, monitoring, validation (**Evidently**) | **7.0 done; 7.3 adversarial suite and 7.6 phrasing/name parity done** (Evidently reports verified in a throwaway venv; not yet in `backend/.venv`) | Next: 7.1 runner (needs `pip install -r backend/requirements-eval.txt`), 7.2, 7.4 (after Phase 2), 7.5 CI |
 | 8 Hardening, CI, packaging | Not started | GitHub Actions CI is specified in 7.5 |
 
-Suggested order: ~~7.0 spike -> 7.3 adversarial suite + 7.6 parity checks~~ (done) -> Phase 2 ->
-7.1/7.2/7.4 -> Phase 3-6 as accounts become available -> 7.5 CI gate -> Phase 8.
+## LLMOps roadmap: what we do next, and why
+
+This project is an LLMOps case study: one real RAG system taken round the whole loop.
+
+```text
+ data  ->  index  ->  prompt / model  ->  serve  ->  observe  ->  evaluate  ->  gate  ->  improve
+(Drive)  (Chroma)    (versioned)        (SSE API)   (traces)    (Evidently)   (CI)    (prompts, LoRA)
+```
+
+**Already in place:** prompt versions and model ids in every trace; token, cost, latency and time-to-first-word tracking; a redacted trace log;
+a versioned, idempotent ingestion engine; an adversarial suite (0 critical breaches) and a fairness audit with accepted baselines; ADRs;
+locked dependencies; secret scanning; a CI-safe fake-LLM test harness (300 tests).
+
+| # | Milestone | LLMOps concept | What gets built | Needs from you |
+|---|---|---|---|---|
+| M1 | **Automatic ingestion** (Phase 3) | data pipelines, freshness, lineage | `GoogleDriveSource`, a source-agnostic poller (never overlapping), per-file status and "last synced" in the admin API, failure alerts in the log, index versioning rules | Google Cloud setup (`docs/SETUP_DRIVE.md`), folder ID, key file |
+| M2 | **Evaluation harness + golden set** (7.1, 7.4) | experiment tracking, offline evaluation, reproducibility | `run_evaluation.py` with a run id and a frozen config snapshot (git sha, prompt versions, model ids, embedding model, chunk settings); retrieval hit@k and MRR, citation correctness, refusal correctness, optional capped LLM-judge faithfulness; calibrate `RAG_MAX_DISTANCE`; Evidently reports | 20-30 real questions with expected facts (I draft candidates from your documents; you approve) |
+| M3 | **CI/CD and promotion gates** (7.5) | continuous evaluation, regression gates, promotion policy | GitHub Actions: lint + tests + build + secrets + eval gate against a baseline; rules for when a prompt, model or adapter may replace the current one; branch protection | nothing (optional repo secret for a capped live run) |
+| M4 | **Monitoring and feedback loop** (7.2) | observability, drift, human feedback | thumbs up/down in the chat linked to the trace id; dashboards for p50/p95 latency, time to first word, cost per answer, refusal and no-evidence rate, retrieval-distance drift, intent mix; alert thresholds; opt-in persistent chat history | nothing |
+| M5 | **Fine-tuning operations** (Phase 6) | dataset versioning, model registry, ablation, controlled rollout | PEFT dataset builder with eval-leak checks, Colab QLoRA notebook, adapter manifest in a private Hugging Face repo, vLLM endpoint on Modal, Model 3 vs base ablation, promotion through the M3 gate | Hugging Face, Colab and Modal accounts |
+| M6 | **Hardening and delivery** (Phase 4/8) | deployment, security, governance | admin page, Docker, rate limits and access control, retention rules, model card and the final comparison report | - |
+
+**Order:** M1 -> M2 -> M3 -> M4 -> M5 -> M6. M1 can start now: the Drive source is built and tested against a fake Drive service first, so the Google setup runs in
+parallel and is only needed for the first live sync. M2 depends on the golden set, which is the only part that needs your domain knowledge.
+
 
 ---
 
