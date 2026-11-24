@@ -11,7 +11,7 @@ Edit the three CHANGE-ME values below from adapter_manifest.json / the notebook'
 and put the printed URL into .env:
   MODEL3_BASE_URL=<url>/v1   MODEL3_API_KEY=<the same VLLM_API_KEY>   MODEL3_MODEL=cu-helpdesk-lora
   MODEL3_BASE_MODEL_ID=Qwen/Qwen3-4B-Instruct-2507   MODEL3_ADAPTER_ID=<repo>@<adapter commit>   MODEL3_ABLATION_MODEL=Qwen/Qwen3-4B-Instruct-2507
-Then check it, and only then call it Model 3:  python scripts/check_model3_endpoint.py --ask --manifest adapter_manifest.json
+Then check it, and only then call it Model 3:  python scripts/check_model3_endpoint.py --ask --manifest data/peft/adapter_manifest.json
 
 Cost: the container scales to zero after SCALEDOWN minutes idle; the first request after that waits for a cold start (tens of seconds to minutes: the
 backend allows 90 s, so warm it before a demo or an evaluation). Billing is per second while a container is up.

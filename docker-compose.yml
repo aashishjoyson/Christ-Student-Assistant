@@ -1,0 +1,31 @@
+# The whole system on one machine:  docker compose up --build   then open http://localhost:8080  (admin page: http://localhost:8080/#/admin)
+# NOT BUILT where it was written (the Docker engine was not running): read docs/DEPLOYMENT.md and watch the first build.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    # Your .env is read by Docker on YOUR machine and handed to the container as environment variables; it is never copied into an image.
+    env_file: .env
+    environment:
+      # Paths are relative to /srv/helpdesk inside the container, whatever .env says about your own machine.
+      GOOGLE_DRIVE_CREDENTIALS_FILE: ./secrets/drive-service-account.json
+    volumes:
+      - storage:/srv/helpdesk/storage          # database, vector index, traces, evaluation runs
+      - ./secrets:/srv/helpdesk/secrets:ro     # the Google key file, read-only
+    expose:
+      - "8000"                                  # not published: only the web container can reach the API
+    restart: unless-stopped
+
+  web:
+    build:
+      context: frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  storage:

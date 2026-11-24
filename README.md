@@ -14,15 +14,16 @@ and a controlled interview-email workflow.
 
 ## Status
 
-This is the **Phase 0 base**: the full skeleton runs end to end. Phases 1-8 are planned in
-`docs/IMPLEMENTATION_PLAN.md` and are meant to be built with Claude Code (`/phase <n>`).
+Working end to end (see `BUILD_REPORT.md` for what was measured, and `docs/IMPLEMENTATION_PLAN.md` for the plan):
 
-| Works now | Arrives in |
+| Area | State |
 |---|---|
-| LangGraph routing, Model 1 (with an API key), applicant status/interview lookups, signed verification, resend workflow (simulated email + audit), traces, UI | Phase 0 (done) |
-| Model 2/3 answer "no documents indexed" until ingestion exists | Phase 2 (local folder RAG) |
-| Drive sync endpoint returns 501 | Phase 3 |
-| Model 3 shows "Not configured" | Phase 6 (train + deploy adapter) |
+| Chat: LangGraph routing, Model 1 and Model 2, streaming answers with citations, follow-up questions, applicant verification, controlled interview-email resend (simulated by default) | **Done and measured** |
+| Documents: Google Drive folder -> parse -> embed -> Chroma, automatic polling, add/edit/delete handled | **Done, verified live** |
+| Evaluation: 38-question golden set proven against the real documents, frozen-configuration runs, promotion gates, CI | **Done**: Model 2 answers about 90-93% correctly, Model 1 about 10% |
+| Monitoring and feedback: traces without text, alerts, drift report, thumbs up/down, admin page (`/#/admin`) | **Done** |
+| Operations: optional persistent chat memory, rate limits, retention, Docker files | Done; Docker files **not built** (no engine was running) |
+| Model 3 (LoRA): dataset builder, notebook, serving file, manifest and endpoint checks, ablation mode | Tooling done; **needs your Hugging Face, Colab and Modal accounts** to train and deploy. Until then Model 3 reports "not configured" and never falls back |
 
 ## Quick start
 
@@ -64,6 +65,20 @@ Open http://localhost:5173. API docs: http://127.0.0.1:8000/docs.
 - Open "How this was handled" under any answer to see the LangGraph node path.
 - Traces: `storage/traces/requests.jsonl`.
 
+## Everyday commands (repo root, backend virtual environment)
+
+| Task | Command |
+|---|---|
+| Index the Drive folder once (or `--force` after a parser change; `--dry-run` lists only) | `python scripts/sync_drive_once.py` |
+| Run the golden-set evaluation (`--modes direct,rag`, `--evidently` for the report) | `python scripts/run_evaluation.py` |
+| Compare a run with the baseline, or promote it | `python scripts/compare_eval.py latest` / `--promote --reason "..."` |
+| Prove the golden set against the documents | `python scripts/check_golden_set.py` |
+| Watch the live system (alerts, drift) | `python scripts/monitor_traces.py` |
+| Delete old traces, ratings and stored chats | `python scripts/retention.py --dry-run` |
+| Build the Model 3 training set (about 3 cents) | `python scripts/build_peft_dataset.py --dry-run` then `--yes` |
+| Check the Model 3 endpoint before calling it Model 3 | `python scripts/check_model3_endpoint.py --ask` |
+| Whole system in containers (see `docs/DEPLOYMENT.md`) | `docker compose up --build` |
+
 ## Building the rest with Claude Code
 
 1. Open this folder in VS Code and start Claude Code in the terminal (`claude`).
@@ -80,16 +95,14 @@ backend/app/rag         retriever/source interfaces    backend/app/api     FastA
 backend/tests           unit + integration (fakes)     frontend/src        React UI
 data/                   synthetic applicants, docs, eval sets
 docs/                   PRD, ARCHITECTURE, IMPLEMENTATION_PLAN, DECISIONS, REVIEW, setup guides
-scripts/                seed, secret scan, package, graph diagram
+scripts/                sync, evaluate, compare, monitor, retention, PEFT dataset, seed, secret scan, package
+deploy/ notebooks/      Model 3 serving (Modal + vLLM) and training (Colab) - written from the docs, not run here
 .claude/                Claude Code skills (/phase, /verify, /guardrails, /package) and permissions
 ```
 
-## Demo sequence (final)
+## Demo
 
-1. Same academic question in Model 1, 2 and 3; compare notice, citations and handled-by labels.
-2. Upload a new document to the Drive folder, sync, ask about it.
-3. Verify a synthetic applicant; status, interview, resend (simulated), cooldown.
-4. Show the trace file and the evaluation comparison report.
+The full show list, in order, with what to say and what to expect, is `docs/DEMO_SCRIPT.md`.
 
 ## Safety defaults
 

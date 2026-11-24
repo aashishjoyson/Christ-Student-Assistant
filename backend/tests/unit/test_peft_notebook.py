@@ -35,6 +35,17 @@ def test_the_notebook_says_it_has_not_been_run_and_pins_its_packages() -> None:
     assert "private=True" in text  # the adapter goes to a private repository
 
 
+def test_the_training_arguments_use_the_names_the_current_libraries_document() -> None:
+    """Checked against the Transformers 5.24 and TRL 1.18 documentation on 2026-11-24: warmup_ratio is no longer a TrainingArguments parameter (a float
+    warmup_steps below 1 is the ratio), TRL calls the length max_length, evaluation_strategy became eval_strategy, and from_pretrained takes dtype."""
+    text = "".join("".join(c["source"]) for c in cells())
+    assert "warmup_ratio=" not in text and "warmup_steps=0.03" in text
+    assert "max_length=" in text and "max_seq_length" not in text
+    assert "eval_strategy=" in text and "evaluation_strategy" not in text
+    assert "dtype=COMPUTE_DTYPE" in text and "torch_dtype=" not in text
+    assert "fp16=not BF16" in text and "assistant_only_loss=" in text  # a T4 has no bfloat16; the default would be bf16
+
+
 def test_the_notebooks_dataset_hash_matches_the_apps(tmp_path: Path) -> None:
     source = next("".join(c["source"]) for c in cells() if c["cell_type"] == "code" and "def dataset_sha256(path):" in "".join(c["source"]))
     function = source[source.index("def dataset_sha256(path):"): source.index("dataset_manifest = ")]

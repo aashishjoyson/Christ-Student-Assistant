@@ -1,5 +1,37 @@
 # Build report
 
+## M5 and M6 - fine-tuning tooling, operations, admin page (2026-11-24)
+
+| Check | Result |
+|---|---|
+| `pytest` (full backend) | **566 passed** (77 new on top of 489: training-set builder 24, adapter manifest and endpoint check 21, notebook 4, Modal file 4, persistent memory 10, rate limit / retention / experiments 10, container files 4); `ruff` clean (app, tests, scripts, deploy); secret scan passed; frontend build and 13 tests pass |
+| GitHub Actions CI | success on `adb7c23` (backend, frontend, secret scan, on Linux) |
+| Training set for Model 3 | built live: **371 examples (284 answerable, 87 refusals)**, train 344 / val 27; teacher `gpt-6-luna`, 298 calls, **$0.031**; 461 passages that prove a golden answer held out; per source: calendar 100, courses 129, FAQ 19, handbook 123 |
+| Rejected while building | 6 teacher answers with a number not in the cited passage, 2 questions too close to a golden question, 6 duplicates, 62 refusal contexts that still held the answer or a near-duplicate, 2 with too few neighbours |
+| Admin page (real headless Edge against a throwaway API with its own key) | wrong key refused; right key opens the dashboard; 8 tiles and the alert; 4 documents with the sync button; the baseline and 8 evaluation runs; nothing written to local or session storage |
+| Demo questions run live | mid-semester 75% (handbook p.29); follow-up end-semester 85%; canteen menu refused; Model 1 declines to state the rule |
+
+**What was built**
+- *M5*: `scripts/build_peft_dataset.py` (+ `app/eval/peft_data.py`, `peft_builder.py`), `app/eval/adapter_manifest.py`, `scripts/check_model3_endpoint.py`, the `rag_peft_base` ablation mode, `notebooks/train_lora_colab.ipynb`, `deploy/modal_vllm.py`.
+- *M6*: opt-in persistent conversation memory and `DELETE /api/chat/{id}`; a per-client chat rate limit; `scripts/retention.py`; `GET /api/admin/experiments/summary`; the admin page at `#/admin`; Docker files (`backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf`, `docker-compose.yml`, `.dockerignore`); `docs/MODEL_CARD.md`, `docs/DEPLOYMENT.md`, a refreshed README and the final `docs/DEMO_SCRIPT.md`.
+
+**Findings**
+1. Checking the notebook against the current Transformers documentation showed `warmup_ratio` is no longer a `TrainingArguments` parameter; the first training cell would have failed. Changed to `warmup_steps=0.03`; a test now pins the argument names.
+2. `.env` pins `RAG_TOP_K=4` and `RAG_MAX_DISTANCE=0.6` (found from the settings' explicitly-set field names, never by reading the file), so the running app does not use the tuned values until `.env` is edited.
+3. The evaluation table mixed a 6-question smoke run (100%) with 38-question runs, so each row now shows its number of questions.
+4. The shell tool repeatedly failed on long inline scripts with several quote styles (nothing was applied each time); files were written with the editor tools and run from disk instead.
+5. The model provider took about 7 s per answer for a few hours, then returned to about 2 to 3 s; the monitoring would have flagged it.
+
+**Not verified, and why**
+- **Colab notebook and Modal file**: written from the current documentation; no GPU or Modal account here. Their first run is the real test.
+- **Docker images**: the Docker engine was not running (the CLI is installed). Guard tests check that no secret or private document can enter an image.
+- **`eval-gate.yml`** (live evaluation in GitHub): never run; it needs repository secrets.
+- **Model 3**: no number exists and none is claimed.
+
+**Open:** the 2 fee-table misses; a held-out golden set; the optional LLM judge; debug drawer, Vitest and an accessibility pass in the UI; branch protection (a repository setting); TLS and the university's sign-in for any real deployment.
+
+---
+
 ## M4 - Monitoring and the feedback loop (2026-11-24)
 
 | Check | Result |

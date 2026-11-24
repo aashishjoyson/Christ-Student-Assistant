@@ -2,7 +2,7 @@
 
   python scripts/check_model3_endpoint.py            # what does the endpoint serve? is the adapter a LoRA of the configured base model?
   python scripts/check_model3_endpoint.py --ask      # also send one tiny question to the adapter and one to the base model (a fraction of a cent)
-  python scripts/check_model3_endpoint.py --manifest adapter_manifest.json   # also validate the adapter's manifest against the dataset and the app
+  python scripts/check_model3_endpoint.py --manifest data/peft/adapter_manifest.json   # also validate the adapter's manifest against the dataset and the app
 
 Reads MODEL3_BASE_URL, MODEL3_API_KEY, MODEL3_MODEL, MODEL3_BASE_MODEL_ID and MODEL3_ADAPTER_ID from .env. The key is only sent to that endpoint.
 Exit codes: 0 everything confirmed; 1 a problem was found; 2 Model 3 is not configured or the endpoint cannot be reached.

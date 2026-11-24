@@ -195,3 +195,18 @@ Short records of the choices most likely to be questioned in a viva. Format: con
 - **Consequences:** there is no dashboard page yet (the JSON endpoint and the command are the interface until the admin page in M6). The thumb endpoint is public and a client could rate any id it makes up; it is an opinion signal, not an authority.
   The distance statistics start from the day this shipped, so drift needs a few days of history before it can fire.
 
+## ADR-023 The adapter teaches behaviour; its training data is checked, and the evaluation's passages never reach it
+- **Decision:** Model 3's LoRA adapter is trained to cite `[n]`, to answer only from the supplied passages and to say "could not find" otherwise; facts stay in retrieval. The training set (`scripts/build_peft_dataset.py`) is built from the indexed documents with a hosted model
+  as teacher, in exactly the prompt format the app serves. Every answerable example must cite a valid passage, stay under 80 words and contain no number that is absent from the cited passage; a refusal example is the same question with the answering passages removed
+  (and near-matches filtered out); passages containing any golden-set proving quote are held out entirely, and questions similar to golden questions are dropped. `adapter_manifest.json` ties an adapter to its dataset hash, the prompt version and the base-model commit, and
+  `scripts/check_model3_endpoint.py` refuses to call an endpoint "Model 3" unless it lists the adapter as a LoRA of the configured base model. A base-model ablation mode (`rag_peft_base`) isolates the adapter's effect.
+- **Why:** an adapter trained on the evaluation's own passages would pass the evaluation without learning anything; a claim that "Model 3 is PEFT" must be checkable by a script, not by reading a README.
+- **Consequences:** the dataset is small (371 examples) and its validation split tiny (27). The Colab notebook and the Modal file are written from current documentation and have **not** been executed; their first run is the real test. No Model 3 number exists yet and none is claimed.
+
+## ADR-024 Operations: opt-in memory in our own table, per-client limits, retention, an admin page, containers
+- **Decision:** Conversation memory can persist across restarts (`CHAT_HISTORY_PERSIST`, off by default) by storing the graph's own history turns (applicant answers already a placeholder; emails and secret-looking values masked) in a table and restoring them when the graph has not seen the
+  conversation; a storage failure never fails a chat turn; `DELETE /api/chat/{id}` forgets a conversation. Chat has a per-client rate limit (60 per minute) like verification and ratings. `scripts/retention.py` prunes traces (90 days), ratings (365) and stored chats (30). The admin
+  page (`#/admin`) shows monitoring, documents with a sync button and the evaluation runs; the key is held in memory only. Docker files run the API as a non-root user behind an nginx that does not buffer the stream.
+- **Why this way:** a persistent LangGraph checkpointer needs a new package (the project asks before installing any); our own table needs none and stores only what the model already sees. The rate limit trusts the forwarded address only because the API port is not published.
+- **Consequences:** persistent memory stores what visitors typed, so it is opt-in with retention and a delete endpoint; with it on, a conversation older than 20 turns is truncated like the in-memory one. The container files have not been built (the Docker engine was not running).
+
