@@ -64,7 +64,7 @@ def main() -> int:
     s = get_settings()
     engine = make_engine(s.database_url)
     init_db(engine)
-    _, ingestion = build_rag(s, make_session_factory(engine))
+    ingestion = build_rag(s, make_session_factory(engine)).local
     if ingestion is None:
         print("OPENAI_API_KEY is not set (needed for embeddings).", file=sys.stderr)
         return 2

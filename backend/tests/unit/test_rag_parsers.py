@@ -83,3 +83,17 @@ def test_unsupported_type_and_extension_mapping() -> None:
 def test_empty_document_is_an_error_not_a_silent_success() -> None:
     with pytest.raises(ParseError, match="no extractable text"):
         parse(b"   \n  ", MIME_TXT, "empty.txt")
+
+
+def test_headed_documents_carry_their_name_into_every_chunk() -> None:
+    """A chunk under a heading like 'Last date and late fine' must still know which circular it belongs to."""
+    from app.domain.chunking import chunk_sections
+
+    docx = make_docx([("h1", "Last date and late fine"), ("p", "Pay by 10 January 2027.")])
+    sections = parse(docx, MIME_DOCX, "Notice_Semester_Fee_Payment_Last_Date.docx")
+    assert sections[0].prefix == "Document: Notice Semester Fee Payment Last Date"
+    assert chunk_sections("f", sections)[0].text.startswith("Document: Notice Semester Fee Payment Last Date\n")
+    md = parse(b"# Dates\nTerm starts in July.\n", MIME_MD, "academic-calendar_2026.md")
+    assert md[0].prefix == "Document: academic-calendar 2026"
+    pdf = parse(make_pdf(["Hello"]), MIME_PDF, "handbook.pdf")
+    assert pdf[0].prefix is None  # pages already carry their page number; only headed formats get a document prefix

@@ -57,9 +57,10 @@ def main() -> int:
     for path in iter_files(ROOT):
         rel = path.relative_to(ROOT).as_posix()
         if any(p.search(path.name) for p in FORBIDDEN_FILES):
-            # A developer's own root .env is expected. It is fine only while git ignores it (and
-            # package_repo.py excludes it by name). If .gitignore ever stops covering it, it is flagged again.
-            if rel == ".env" and is_git_ignored(path):
+            # A developer's own root .env and the Drive key in the root secrets/ folder are expected. They are fine only
+            # while git ignores them (and package_repo.py excludes both by name). If .gitignore ever stops covering
+            # them, or the same file name turns up anywhere else, it is flagged again.
+            if (rel == ".env" or rel.startswith("secrets/")) and is_git_ignored(path):
                 continue  # never read its contents
             findings.append(f"forbidden file: {rel}")
             continue

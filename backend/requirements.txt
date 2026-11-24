@@ -4,6 +4,7 @@
 
 # Windows has no system time-zone database; zoneinfo("Asia/Kolkata") needs this package there.
 tzdata>=2024.1; sys_platform == "win32"
+truststore>=0.9; sys_platform == "win32"  # Windows: use the OS certificate store (corporate and antivirus HTTPS inspection)
 
 # API + settings + database
 fastapi>=0.160,<1.0

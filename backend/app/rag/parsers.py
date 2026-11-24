@@ -13,6 +13,7 @@ import csv
 import io
 import re
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import PurePosixPath
 
 from app.domain.documents import ParsedSection
@@ -23,7 +24,10 @@ MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MIME_MD = "text/markdown"
 MIME_TXT = "text/plain"
 MIME_CSV = "text/csv"
-MIME_GOOGLE_DOC = "application/vnd.google-apps.document"  # Phase 3 exports these to DOCX before parsing
+MIME_GOOGLE_DOC = "application/vnd.google-apps.document"
+MIME_GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet"
+# Google-native files have no bytes of their own: the Drive source exports them (Doc -> DOCX, Sheet -> XLSX) and the exported bytes are parsed.
+NATIVE_EXPORT_MIME = {MIME_GOOGLE_DOC: MIME_DOCX, MIME_GOOGLE_SHEET: MIME_XLSX}
 
 SUPPORTED_MIME_TYPES = frozenset({MIME_PDF, MIME_DOCX, MIME_XLSX, MIME_MD, MIME_TXT, MIME_CSV})
 _EXTENSION_MIME = {
@@ -49,7 +53,8 @@ def mime_for_name(name: str) -> str:
 
 
 def is_supported(mime_type: str) -> bool:
-    return mime_type in SUPPORTED_MIME_TYPES
+    """Can this file be indexed? (Google Docs/Sheets are supported through export.)"""
+    return mime_type in SUPPORTED_MIME_TYPES or mime_type in NATIVE_EXPORT_MIME
 
 
 def parse(content: bytes, mime_type: str, name: str) -> list[ParsedSection]:
@@ -73,6 +78,11 @@ def parse(content: bytes, mime_type: str, name: str) -> list[ParsedSection]:
     except Exception as exc:  # parser libraries raise many types; never leak file content into the message
         raise ParseError(f"{name}: could not read the file ({type(exc).__name__})") from exc
     sections = [s for s in sections if s.text.strip()]
+    if mime_type in (MIME_DOCX, MIME_MD):
+        # A chunk under a heading such as "Last date and late fine" must still know which circular it comes from, both for
+        # the embedding and for the model reading it. (PDF pages carry a page number; table rows get their own identity prefix.)
+        label = "Document: " + PurePosixPath(name).stem.replace("_", " ").strip()
+        sections = [s if s.prefix else replace(s, prefix=label) for s in sections]
     if not sections:
         hint = " (a scanned PDF has no text layer; OCR is not supported)" if mime_type == MIME_PDF else ""
         raise ParseError(f"{name}: no extractable text{hint}")

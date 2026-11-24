@@ -13,7 +13,7 @@ Legend: [x] done in the base repo · [ ] to do
 | 1 Install, tests, Model 1 live | **Done** (committed + pushed, 90 tests, Model 1 verified live) | - |
 | UI restyle (widget on a homepage backdrop) | In progress, **uncommitted** | Real photos still to add (see Phase 4); then commit |
 | 2 RAG over a local folder | **Done, verified live on the real documents** (committed + pushed) | Next: automatic ingestion (poller) and the Drive source = Phase 3 |
-| 3 Google Drive source | Not started | Google Cloud project, service account, shared Drive folder ID |
+| 3 Google Drive source + automatic polling (M1) | **Built and tested against a fake Drive** (342 tests); live listing connected, folder was empty | Upload documents to the Drive folder, set the `.env` lines in `docs/SETUP_DRIVE.md`, run the first real sync |
 | 4 Frontend completion | Partly (restyle) | Admin page, debug drawer, Vitest, accessibility pass |
 | 5 Real email (opt-in) | Not started | Optional: SMTP sandbox (Mailtrap) credentials + allowlist |
 | 6 PEFT/LoRA + Model 3 endpoint | Not started | Hugging Face account, Colab GPU session, Modal (or HF Endpoints) account |
@@ -31,11 +31,11 @@ This project is an LLMOps case study: one real RAG system taken round the whole 
 
 **Already in place:** prompt versions and model ids in every trace; token, cost, latency and time-to-first-word tracking; a redacted trace log;
 a versioned, idempotent ingestion engine; an adversarial suite (0 critical breaches) and a fairness audit with accepted baselines; ADRs;
-locked dependencies; secret scanning; a CI-safe fake-LLM test harness (300 tests).
+locked dependencies; secret scanning; a CI-safe fake-LLM test harness (342 tests); a Drive source and an automatic ingestion poller (M1, needs its first live sync).
 
 | # | Milestone | LLMOps concept | What gets built | Needs from you |
 |---|---|---|---|---|
-| M1 | **Automatic ingestion** (Phase 3) | data pipelines, freshness, lineage | `GoogleDriveSource`, a source-agnostic poller (never overlapping), per-file status and "last synced" in the admin API, failure alerts in the log, index versioning rules | Google Cloud setup (`docs/SETUP_DRIVE.md`), folder ID, key file |
+| M1 | **Automatic ingestion** (Phase 3, **built; first live sync pending**) | data pipelines, freshness, lineage | `GoogleDriveSource`, a source-agnostic poller (never overlapping), per-file status and "last synced" in the admin API, failure alerts in the log, index versioning rules | Google Cloud setup (`docs/SETUP_DRIVE.md`), folder ID, key file |
 | M2 | **Evaluation harness + golden set** (7.1, 7.4) | experiment tracking, offline evaluation, reproducibility | `run_evaluation.py` with a run id and a frozen config snapshot (git sha, prompt versions, model ids, embedding model, chunk settings); retrieval hit@k and MRR, citation correctness, refusal correctness, optional capped LLM-judge faithfulness; calibrate `RAG_MAX_DISTANCE`; Evidently reports | 20-30 real questions with expected facts (I draft candidates from your documents; you approve) |
 | M3 | **CI/CD and promotion gates** (7.5) | continuous evaluation, regression gates, promotion policy | GitHub Actions: lint + tests + build + secrets + eval gate against a baseline; rules for when a prompt, model or adapter may replace the current one; branch protection | nothing (optional repo secret for a capped live run) |
 | M4 | **Monitoring and feedback loop** (7.2) | observability, drift, human feedback | thumbs up/down in the chat linked to the trace id; dashboards for p50/p95 latency, time to first word, cost per answer, refusal and no-evidence rate, retrieval-distance drift, intent mix; alert thresholds; opt-in persistent chat history | nothing |
@@ -142,7 +142,9 @@ Create
 
 Tests: `GoogleDriveSource` with a fake Drive service object (list pagination, Google Doc export path, trashed exclusion, md5/version mapping); poller does not overlap.
 
-Acceptance: upload a new file to the folder -> appears in status after sync -> answerable in Model 2; edit it -> new version; delete it -> no longer cited.
+**Status (2026-11-24):** built and tested (`tests/unit/test_drive_source.py`, `tests/integration/test_drive_ingestion.py`, `tests/integration/test_poller.py`; ADR-018). Done: source, poller, shared lock, `purge()`, admin sync + status, `sync_drive_once.py`, demo documents. **Not done:** `drive_oauth_login.py` (service account is the supported path), and the live acceptance run below, which needs documents in the Drive folder (see `docs/DEMO_SCRIPT.md`).
+
+Acceptance: upload a new file to the folder -> appears in status after sync -> answerable in Model 2; edit it -> new version; delete it -> no longer cited. (Demonstrated against the fake Drive by `test_the_demo_script_works_with_the_real_demo_documents`; to be demonstrated live.)
 
 ---
 

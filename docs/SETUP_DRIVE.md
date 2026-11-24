@@ -20,7 +20,17 @@ Best for unattended polling: no browser login and no token expiry.
    GOOGLE_DRIVE_CREDENTIALS_FILE=./secrets/drive-service-account.json
    DRIVE_POLL_ENABLED=false   # start with manual sync; enable once it works
    ```
-8. Run `python scripts/sync_drive_once.py` (Phase 3) and check `GET /api/admin/drive/status`.
+8. Put the documents **directly in that folder** (sub-folders are ignored). Then, from the repo root:
+   ```text
+   python scripts/sync_drive_once.py --dry-run     # connects and LISTS the folder only: nothing downloaded, embedded or written
+   python scripts/sync_drive_once.py --purge-local # first real sync; removes the local-folder copies from the index so one document
+                                                   # is never answered from two places (omit the flag on later runs)
+   ```
+   A real sync downloads changed files and sends their text to OpenAI for embeddings (a few cents for a small folder; unchanged files cost nothing).
+9. Restart the API after any `.env` change. Check `GET /api/admin/drive/status` (header `X-Admin-Key`): `drive_ready`, `seconds_since_last_success`, per-file status.
+10. **Automatic ingestion:** set `DRIVE_POLL_ENABLED=true` (and optionally `DRIVE_SYNC_INTERVAL_SECONDS=300`; the minimum accepted is 15) and restart. The API now checks the folder by itself every
+    interval: a new file is indexed, an edited file gets a new version (the old one is removed only after the new one is stored), and a trashed or removed file stops being
+    cited. Repeated failures back off exponentially (interval x 2^n, capped at 1 hour) and heal on their own once Drive works again; the last good index keeps answering meanwhile.
 
 If sharing with the service account is blocked (some university Workspace domains restrict external
 sharing), use a personal Google account's Drive or Option B.
@@ -35,7 +45,8 @@ sharing), use a personal Google account's Drive or Option B.
    GOOGLE_DRIVE_CREDENTIALS_FILE=./secrets/drive-oauth-client.json
    GOOGLE_DRIVE_TOKEN_FILE=./secrets/drive-token.json
    ```
-4. Run `python scripts/drive_oauth_login.py` once; a browser opens; the token is saved to `secrets/drive-token.json`.
+4. **Not built yet:** the one-time login script (`scripts/drive_oauth_login.py`). The app can already load an existing token from `GOOGLE_DRIVE_TOKEN_FILE`, but nothing
+   creates it. Use the service account (Option A) unless you really need OAuth; say so and the script becomes the next small task.
 
 **Caveat:** while the consent screen is in "Testing" status, Google expires the authorization and refresh token
 **7 days** after consent. Polling then fails with `invalid_grant` - re-run the login script. Publishing the app
@@ -52,6 +63,8 @@ Shortcuts and sub-folders are ignored in v1. Trashed files are treated as delete
 | Symptom | Likely cause |
 |---|---|
 | 404 on the folder | Folder not shared with the service account, or wrong ID |
+| "The folder is empty" from `--dry-run` | Files are inside a sub-folder (ignored), or not uploaded yet. The script lists ignored sub-folders |
 | 403 `insufficientPermissions` | Wrong scope or Drive API not enabled |
+| TLS / certificate errors on Windows | Antivirus or corporate HTTPS inspection re-signs traffic; the app trusts the Windows certificate store (`truststore`), certificate checks are never turned off |
 | `invalid_grant` after a week | OAuth Testing-mode token expiry |
 | Google Doc indexed with no headings | Export fell back to plain text; check export MIME type |

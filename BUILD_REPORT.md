@@ -1,5 +1,29 @@
 # Build report
 
+## M1 / Phase 3 - Google Drive source and automatic ingestion poller (2026-11-24)
+
+| Check | Result |
+|---|---|
+| `pytest` (full backend) | **342 passed** (42 new: Drive source 18, Drive ingestion + demo flow + admin API 11, poller 7, secret-scan rules 4, document-name prefix 1, polling-interval floor 1); `ruff` clean (app, tests, scripts); `check_secrets.py` passed; `npm run build` and 13 `npm test` passed |
+| Live Drive check (read-only listing) | connected with the user's service account; API enabled and folder shared correctly; **the folder was empty**, so no live download/export has been demonstrated yet |
+
+**What was built:** `GoogleDriveSource` (paged non-recursive listing, md5 vs version change signals, Google Docs/Sheets export, extension beats generic Drive labels, safe error
+messages), `IngestionPoller` (never overlaps, backoff, `skipped_busy`, starts and stops with the API), one lock shared by all sources, `purge()` for switching the source of truth,
+admin `POST /api/admin/drive/sync` and richer `drive/status` (readiness reason, poller state, seconds since last success), `scripts/sync_drive_once.py` (`--dry-run`, `--purge-local`),
+and `scripts/make_demo_docs.py` (four realistic fictional circulars + one revised version in `data/demo_docs/`; a test replays the add / edit / delete demo against them).
+
+**Findings**
+1. *Fixed:* Drive labels Markdown as `text/plain`, which lost headings; the file extension now wins over generic labels (a unit test caught it).
+2. *Fixed:* the secret scan rejected the (git-ignored) Drive key in `secrets/`. It now accepts a file in the root `secrets/` or a root `.env` only while git ignores it; the same file anywhere else, or once git stops ignoring it, still fails (4 tests).
+3. *Design:* a listing failure never deletes anything, so a Drive outage cannot look like "all files removed"; the last good index keeps answering.
+4. *Test limit:* the fake embedder cannot rank chunks within one document, so the demo test proves the right document and fact are indexed and the old wording is gone; ranking quality is what the live demo shows with the real embedding model.
+5. *Not built:* `scripts/drive_oauth_login.py` (OAuth mode can load a token but nothing creates it); the admin page; live-Drive CI. The service account path is complete.
+
+**What you must do:** upload the real documents to the Drive folder (directly, no sub-folders); add `GOOGLE_DRIVE_AUTH_MODE`, `GOOGLE_DRIVE_CREDENTIALS_FILE`, `GOOGLE_DRIVE_FOLDER_ID`,
+`DRIVE_POLL_ENABLED`, `DRIVE_SYNC_INTERVAL_SECONDS` to `.env` (and to `.env.example`, which I may not edit); run `sync_drive_once.py --dry-run`, then the real sync with `--purge-local`; restart the API.
+
+---
+
 ## Streaming, formatted answers, follow-up context and the widget UI (2026-11-24)
 
 | Check | Result |

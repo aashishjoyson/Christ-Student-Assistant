@@ -69,6 +69,7 @@ class IngestionService:
         chunk_size: int = 900,
         chunk_overlap: int = 120,
         now: Callable[[], datetime] = utcnow,
+        lock: threading.Lock | None = None,
     ) -> None:
         self._source = source
         self._embedder = embedder
@@ -77,7 +78,7 @@ class IngestionService:
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
         self._now = now
-        self._lock = threading.Lock()
+        self._lock = lock or threading.Lock()  # share one lock across sources so two syncs never write to Chroma at once
 
     # ------------------------------------------------------------------ public
     def sync(self, trigger: str = "manual") -> SyncResult:
@@ -85,6 +86,23 @@ class IngestionService:
             raise SyncAlreadyRunning("a sync is already running")
         try:
             return self._sync(trigger)
+        finally:
+            self._lock.release()
+
+    def purge(self) -> int:
+        """Remove everything THIS source has indexed (chunks and bookkeeping). Used when the source of truth changes, e.g. from the
+        local folder to Drive, so the same document is not answered from two places. Returns the number of files removed."""
+        if not self._lock.acquire(blocking=False):
+            raise SyncAlreadyRunning("a sync is already running")
+        try:
+            with self._session_factory() as session:
+                rows = list(session.execute(select(IngestedFile).where(
+                    IngestedFile.source == self._source.name, IngestedFile.status != "deleted")).scalars())
+                for row in rows:
+                    self._store.delete_file(row.source_file_id)
+                    row.status, row.active_version, row.chunk_count, row.last_error = "deleted", None, 0, None
+                session.commit()
+                return len(rows)
         finally:
             self._lock.release()
 

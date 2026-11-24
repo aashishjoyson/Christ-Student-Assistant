@@ -24,8 +24,14 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         configure_logging()
         app.state.container = container or build_container(settings)
-        # Phase 3: start the Drive poller here when DRIVE_POLL_ENABLED=true (single-flight lock).
-        yield
+        pollers = app.state.container.pollers  # automatic ingestion (DRIVE_POLL_ENABLED); single-flight, never overlapping
+        for poller in pollers:
+            poller.start()
+        try:
+            yield
+        finally:
+            for poller in pollers:
+                await poller.stop()
 
     app = FastAPI(title="CU Student Helpdesk AI (prototype)", version=__version__, lifespan=lifespan)
     app.add_middleware(

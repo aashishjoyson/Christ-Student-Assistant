@@ -51,6 +51,7 @@ class SourceFile:
     modified_time: datetime | None
     remote_checksum: str | None  # Drive md5Checksum, or Drive 'version' for Google Docs
     source_url: str | None = None
+    size_bytes: int | None = None  # known for Drive binary files; used to refuse absurdly large downloads
 
 
 class DocumentSource(Protocol):

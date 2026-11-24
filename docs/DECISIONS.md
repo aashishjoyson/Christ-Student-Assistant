@@ -134,3 +134,17 @@ Short records of the choices most likely to be questioned in a viva. Format: con
 - **Consequences:** a failure before the first word is a normal HTTP error (the 503 for an unconfigured Model 3 is preserved); a failure after text starts ends with an
   `error` event. The first word still waits for hidden reasoning: lower `LLM_REASONING_EFFORT` to shorten it. Frontend logic is covered by dependency-free `node --test`
   tests (`npm test`) until Vitest arrives in Phase 4. Streaming needs `stream_options.include_usage` support from the provider (OpenAI, OpenRouter and vLLM have it).
+
+## ADR-018 Automatic ingestion by polling a source-agnostic engine; Drive is read-only and non-recursive
+- **Context:** the user wants a new document dropped into a Drive folder to become answerable without running a command. Drive push notifications need a public HTTPS
+  endpoint, which a local prototype does not have.
+- **Decision:** an asyncio `IngestionPoller` (started in the FastAPI lifespan when `DRIVE_POLL_ENABLED=true`) calls `IngestionService.sync("poll")` in a worker thread every
+  `DRIVE_SYNC_INTERVAL_SECONDS`. It does not know about Drive; any `DocumentSource` works. One lock is shared by all sources, so a manual sync, the poller and a second
+  source never write at the same time (a busy poll is `skipped_busy`, not a failure). Failures back off to `interval x 2^n` (cap one hour) and count toward the admin status.
+  `GoogleDriveSource` lists one folder (non-recursive; sub-folders and shortcuts are reported, not followed), uses md5 for binary files and `version` + `modifiedTime` for Google
+  Docs/Sheets (which have no md5), exports Docs to DOCX and Sheets to XLSX, and lets the file extension win over Drive's generic labels (`text/plain` for `.md`).
+  Every chunk carries "Document: <file name>" so questions that name a document find it.
+- **Why:** polling is the only trigger that works from a laptop; a shared lock and "new version before deleting the old one" mean a failure at any step leaves the last good index
+  answering. Drive access is `drive.readonly`, and a listing failure never deletes anything (an outage must not look like "every file was removed").
+- **Consequences:** a change shows up within one interval (default 5 minutes), not instantly. Switching the source of truth needs `--purge-local` once so the same document is not
+  indexed twice. Push (`changes.watch`) can replace the trigger later without touching the engine.

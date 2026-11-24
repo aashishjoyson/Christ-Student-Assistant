@@ -44,6 +44,10 @@ class IngestionStatusResponse(BaseModel):
     counts: dict[str, int]
     local_docs_folder: str | None = None  # folder NAME only, never the full path
     retriever: dict[str, object] | None = None
+    drive_ready: bool = False  # Drive is configured AND its credentials loaded
+    drive_error: str | None = None  # why Drive is unavailable (safe text: no credentials, no file contents)
+    pollers: list[dict[str, object]] = []  # automatic ingestion: last/next run, status, failures
+    seconds_since_last_success: int | None = None  # index freshness: age of the last successful sync
 
 
 class SyncResultOut(BaseModel):

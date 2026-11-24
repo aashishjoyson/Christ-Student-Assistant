@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     google_drive_credentials_file: Path | None = None
     google_drive_token_file: Path = REPO_ROOT / "secrets" / "drive-token.json"
     drive_poll_enabled: bool = False
-    drive_sync_interval_seconds: int = 300
+    drive_sync_interval_seconds: int = Field(300, ge=15)  # a floor, so a typo cannot hammer the Drive API
 
     # --- Relational store ---
     database_url: str = f"sqlite:///{(STORAGE_DIR / 'helpdesk.db').as_posix()}"
