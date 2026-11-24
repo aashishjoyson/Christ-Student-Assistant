@@ -12,7 +12,7 @@ Legend: [x] done in the base repo · [ ] to do
 | 0 Foundation | Done | - |
 | 1 Install, tests, Model 1 live | **Done** (committed + pushed, 90 tests, Model 1 verified live) | - |
 | UI restyle (widget on a homepage backdrop) | In progress, **uncommitted** | Real photos still to add (see Phase 4); then commit |
-| 2 RAG over a local folder | Not started | Uses `OPENAI_API_KEY` for embeddings (small cost); Chroma is already installed |
+| 2 RAG over a local folder | **Done, verified live on the real documents** (committed + pushed) | Next: automatic ingestion (poller) and the Drive source = Phase 3 |
 | 3 Google Drive source | Not started | Google Cloud project, service account, shared Drive folder ID |
 | 4 Frontend completion | Partly (restyle) | Admin page, debug drawer, Vitest, accessibility pass |
 | 5 Real email (opt-in) | Not started | Optional: SMTP sandbox (Mailtrap) credentials + allowlist |
@@ -72,6 +72,17 @@ trace line written [x]. **Phase 1 is complete.**
 
 **Goal:** Model 2 answers the synthetic questions with citations.
 
+**Status 2026-11-24: DONE.** Built as specified (parsers, embeddings, Chroma store, retriever, local source, sync engine, `POST /api/admin/local/sync`,
+`GET /api/admin/local/status`, `scripts/sync_local_once.py` with `--dry-run`, container wiring) plus these deliberate additions:
+- **XLSX and CSV parsers** (the real course table is a spreadsheet). Each row is one section; its short cells (course, campus, ...) are a **prefix repeated in every
+  chunk** of that row (`ParsedSection.prefix`), so a chunk from the middle of a long "Fees" cell still names its course.
+- **`LOCAL_DOCS_INCLUDE_SYNTHETIC` (default false):** `SYNTHETIC_*` placeholder files are NOT indexed. Found live: with them in the same folder the assistant answered
+  real exam-date questions from invented dates. The synthetic evaluation set must opt in and use its own `CHROMA_COLLECTION` (Phase 7.4).
+- Chroma anonymous telemetry is off; `package_repo.py` and `.gitignore` keep real documents out of git and ZIPs.
+- Tests: 100 new (parsers, embedder batching, chunk prefix, and the sync state machine AC-06.1 to 06.5 against a real temporary Chroma with a fake embedder).
+- Live result on the real documents: 4 files (calendar PDF, handbook PDF, course XLSX, website FAQ) -> 1,985 chunks; 380k tokens, about $0.0076; a second sync made 0 embedding calls.
+- Not done here (by design): synthetic-set acceptance (a01-a16 / u01-u05) belongs to 7.4; the admin page to Phase 4; the poller and Drive to Phase 3.
+
 Create
 - `app/rag/parsers.py` - `parse(content: bytes, mime_type: str, name: str) -> list[ParsedSection]`: PDF via `pypdf` (one section per page, `page=n`), DOCX via `python-docx` (split at headings, `section=heading`), Markdown (split at `#` headings), TXT (single section). Unsupported -> raise `UnsupportedFileType`.
 - `app/rag/embeddings.py` - `Embedder` protocol + `OpenAIEmbedder` (batch of <= 100 inputs, records token usage).
@@ -95,6 +106,10 @@ Acceptance: sync `data/sample_docs`; Model 2 answers a01-a16 with citations in t
 ---
 
 ## Phase 3 - Google Drive source, polling, admin sync
+
+**Automatic ingestion = this phase.** The poller is source-agnostic: it just calls `IngestionService.sync("poll")` every `DRIVE_SYNC_INTERVAL_SECONDS` (single-flight,
+never overlapping). It can be built first and used with the local folder today; switching to Drive then only swaps the `DocumentSource`. A new, edited or deleted file shows up
+within one polling interval (default 5 minutes); instant push needs a public HTTPS endpoint, which a local prototype does not have.
 
 Create
 - `app/rag/sources/google_drive.py` - `GoogleDriveSource` (service account or OAuth per `GOOGLE_DRIVE_AUTH_MODE`; scope `drive.readonly`; paginated `files.list` with the query/fields in ARCHITECTURE 6.3; `files.get_media` for binaries; `files.export` for Google Docs -> DOCX; `webViewLink` as `source_url`; retries with backoff on 429/5xx).

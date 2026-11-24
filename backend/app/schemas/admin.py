@@ -42,3 +42,22 @@ class IngestionStatusResponse(BaseModel):
     last_run: SyncRunOut | None
     files: list[IngestedFileOut]
     counts: dict[str, int]
+    local_docs_folder: str | None = None  # folder NAME only, never the full path
+    retriever: dict[str, object] | None = None
+
+
+class SyncResultOut(BaseModel):
+    """Result of POST /api/admin/local/sync."""
+
+    run_id: int
+    status: str
+    files_seen: int
+    files_indexed: int
+    files_skipped: int
+    files_failed: int
+    files_deleted: int
+    files_unsupported: int
+    embed_calls: int
+    embed_tokens: int
+    est_embedding_cost_usd: float | None
+    error: str | None

@@ -28,7 +28,7 @@ def content_version(sections: Sequence[ParsedSection]) -> str:
     """Hash of normalized content. Changes only when the text changes."""
     digest = hashlib.sha256()
     for s in sections:
-        digest.update(f"{s.page}|{s.section}|{normalize_text(s.text)}\n".encode())
+        digest.update(f"{s.page}|{s.section}|{s.prefix or ''}|{normalize_text(s.text)}\n".encode())
     return digest.hexdigest()[:16]
 
 
@@ -75,7 +75,11 @@ def chunk_sections(
     version = content_version(sections)
     chunks: list[Chunk] = []
     for section in sections:
-        for piece in split_text(section.text, size, overlap):
+        prefix = normalize_text(section.prefix) if section.prefix else ""
+        room = size - len(prefix) - 1 if prefix else size  # the prefix counts towards the chunk size
+        if prefix and room < max(100, overlap + 20):
+            raise ValueError("section prefix is too long for the chunk size")
+        for piece in split_text(section.text, room, overlap if not prefix else min(overlap, room // 4)):
             index = len(chunks)
             chunks.append(
                 Chunk(
@@ -83,7 +87,7 @@ def chunk_sections(
                     source_id=source_id,
                     version=version,
                     index=index,
-                    text=piece,
+                    text=f"{prefix}\n{piece}" if prefix else piece,
                     page=section.page,
                     section=section.section,
                 )

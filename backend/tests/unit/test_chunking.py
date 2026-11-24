@@ -44,3 +44,25 @@ def test_empty_text_produces_no_chunks() -> None:
 def test_invalid_overlap_rejected() -> None:
     with pytest.raises(ValueError):
         split_text("abc", size=100, overlap=100)
+
+
+# ---- section prefix: identity repeated in EVERY chunk (e.g. the course name of a table row) ----
+def test_prefix_is_repeated_in_every_chunk_and_size_is_respected() -> None:
+    section = ParsedSection(LONG, section="Course X", prefix="Course Name: MBA; Campus: Central")
+    chunks = chunk_sections("f", [section], size=300, overlap=50)
+    assert len(chunks) > 3
+    assert all(c.text.startswith("Course Name: MBA; Campus: Central\n") for c in chunks)
+    assert all(len(c.text) <= 300 for c in chunks)
+    assert len({c.chunk_id for c in chunks}) == len(chunks)
+
+
+def test_prefix_changes_the_version_and_a_section_without_prefix_is_unchanged() -> None:
+    plain = [ParsedSection("Hello world", page=1)]
+    prefixed = [ParsedSection("Hello world", page=1, prefix="Course: A")]
+    assert content_version(plain) != content_version(prefixed)
+    assert chunk_sections("f", plain)[0].text == "Hello world"  # old behaviour untouched
+
+
+def test_an_oversized_prefix_is_rejected_instead_of_looping() -> None:
+    with pytest.raises(ValueError, match="prefix"):
+        chunk_sections("f", [ParsedSection("text", prefix="p" * 400)], size=300, overlap=50)

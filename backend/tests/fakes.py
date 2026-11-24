@@ -83,3 +83,41 @@ class RecordingEmailProvider:
         if self.status == "failed":
             return SendResult(status="failed", provider=self.name, error="provider rejected")
         return SendResult(status=self.status, provider=self.name, provider_message_id=f"msg-{len(self.sent)}")  # type: ignore[arg-type]
+
+
+class FakeEmbedder:
+    """Deterministic bag-of-words embeddings (64 dims): texts that share words are close. Counts calls; can fail or block."""
+
+    model = "fake-embed-1"
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.texts_embedded = 0
+        self.fail = False
+        self.gate: object | None = None  # a threading.Event: embed() waits for it (single-flight test)
+        self.entered: object | None = None  # a threading.Event set when embed() starts
+
+    @staticmethod
+    def _vector(text: str) -> list[float]:
+        import math
+        import re
+        import zlib
+
+        vec = [0.0] * 64
+        for word in re.findall(r"[a-z0-9]+", text.lower()):
+            vec[zlib.crc32(word.encode()) % 64] += 1.0
+        norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+        return [v / norm for v in vec] if any(vec) else [1.0 / 8] * 64
+
+    def embed(self, texts):  # type: ignore[no-untyped-def]
+        from app.rag.embeddings import EmbeddingError, EmbedResult
+
+        if self.entered is not None:
+            self.entered.set()  # type: ignore[attr-defined]
+        if self.gate is not None:
+            self.gate.wait(timeout=10)  # type: ignore[attr-defined]
+        if self.fail:
+            raise EmbeddingError("scripted embedding failure")
+        self.calls += 1
+        self.texts_embedded += len(texts)
+        return EmbedResult(vectors=[self._vector(t) for t in texts], tokens=sum(max(1, len(t) // 4) for t in texts), calls=1)

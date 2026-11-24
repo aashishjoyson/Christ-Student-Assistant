@@ -1,5 +1,28 @@
 # Build report
 
+## Phase 2 - RAG over a local folder, live on the real documents (2026-11-24)
+
+| Command / check | Result |
+|---|---|
+| `pytest` (full) | **272 passed** (100 new for Phase 2); `ruff` clean; secret scan passed |
+| `scripts/sync_local_once.py --dry-run` | 6 files parsed locally; 1,988 chunks, ~399k tokens, est. $0.008; nothing sent |
+| `scripts/sync_local_once.py` (real) | seen 6, indexed 6, failed 0; **25 embedding calls, 379,786 tokens, about $0.0076** |
+| Second `sync_local_once.py` | skipped 6, **0 embedding calls**, $0 (AC-06.1 live) |
+| Re-sync after excluding `SYNTHETIC_*` | 3 placeholders deleted from the index, $0 |
+| FAQ page added | indexed incrementally: 1 file, 1,647 tokens, 3 files skipped |
+| Live questions (Model 2, port 8000) | attendance 85% / 75% cited to the handbook (pages 29, 47); MBA eligibility and fees from the right spreadsheet row; MBA application dates from the FAQ; exam dates from the REAL calendar (page 10) with an honest "not a complete schedule"; the cafeteria WiFi question refused with no LLM call |
+
+**Findings (all fixed unless stated)**
+1. *Fixed:* placeholder documents in the same folder were answering real questions (exam dates came from `SYNTHETIC_academic_calendar`). Now excluded by default (`LOCAL_DOCS_INCLUDE_SYNTHETIC=false`), with a test.
+2. *Fixed:* spreadsheet rows split across chunks lost which course they described. Rows are now sections with a repeated identity prefix.
+3. *Fixed:* the text decoder tried UTF-16 before Windows-1252 and silently produced garbage for cp1252 files (found by a unit test).
+4. *Open (design choice):* "I paid the fee but my application status shows incomplete" is routed to the personal status path and asks the user to verify, although the FAQ has a general answer.
+5. *Note:* Model 2 answers cost about $0.0001-0.0005 and took 2-8 s (reasoning models are slower on long answers).
+
+**Needs you:** add `LOCAL_DOCS_INCLUDE_SYNTHETIC=false` and `INTENT_LLM_FALLBACK=true` to `.env.example` (the repo's deny rules stop me from editing that file).
+
+---
+
 ## LLM intent fallback, Evidently in the project venv, trace-redaction fix (2026-11-24)
 
 | Command / check | Result |

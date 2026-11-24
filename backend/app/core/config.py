@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     chroma_persist_dir: Path = STORAGE_DIR / "chroma"
     chroma_collection: str = "cu_helpdesk_docs"
     local_docs_dir: Path = REPO_ROOT / "data" / "sample_docs"
+    # SYNTHETIC_* files are placeholders with invented facts. Keep them out of the index unless you are running the
+    # synthetic evaluation set (then also use a separate CHROMA_COLLECTION so real and placeholder data never mix).
+    local_docs_include_synthetic: bool = False
 
     # --- Google Drive ingestion ---
     google_drive_folder_id: str = ""

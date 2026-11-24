@@ -428,7 +428,7 @@ privacy rules still hold (synthetic evaluation data, no message text in traces b
 
 All settings are in `app/core/config.py` and documented in `.env.example`. Blank values mean "unset".
 Groups: App (`APP_ENV`, `APP_SECRET_KEY`, `APP_TIMEZONE`, `FRONTEND_ORIGIN`), Models 1-2 (`LLM_PROVIDER`,
-`OPENAI_*`, `OPENROUTER_*`, `LLM_*`, `HISTORY_TURNS`, `INTENT_LLM_FALLBACK`), Model 3 (`MODEL3_*`), RAG (`RAG_*`, `CHROMA_*`,
+`OPENAI_*`, `OPENROUTER_*`, `LLM_*`, `HISTORY_TURNS`, `INTENT_LLM_FALLBACK`), Model 3 (`MODEL3_*`), RAG (`RAG_*`, `CHROMA_*`, `LOCAL_DOCS_DIR`, `LOCAL_DOCS_INCLUDE_SYNTHETIC`,
 `LOCAL_DOCS_DIR`), Drive (`GOOGLE_DRIVE_*`, `DRIVE_*`), DB (`DATABASE_URL`), verification
 (`APPLICANT_SESSION_TTL_MINUTES`, `VERIFY_*`), email (`EMAIL_*`, `SMTP_*`, `NOTIFICATION_*`), LLMOps
 (`TRACE_*`, `MLFLOW_TRACKING_URI`), admin (`ADMIN_API_KEY`).

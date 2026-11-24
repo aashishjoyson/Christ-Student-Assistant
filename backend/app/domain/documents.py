@@ -12,6 +12,7 @@ class ParsedSection:
     text: str
     page: int | None = None  # 1-based page number for PDFs
     section: str | None = None  # nearest heading for DOCX / Markdown
+    prefix: str | None = None  # identity line repeated at the top of EVERY chunk of this section (e.g. a table row's course name)
 
 
 @dataclass(frozen=True)
