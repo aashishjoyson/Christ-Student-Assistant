@@ -15,9 +15,17 @@ from app.db.models import IngestedFile, SyncRun
 from app.domain.clock import utcnow
 from app.rag.ingest import IngestionService, SyncAlreadyRunning, estimate_embedding_cost
 from app.schemas.admin import IngestedFileOut, IngestionStatusResponse, SyncResultOut, SyncRunOut
+from app.services.experiments import experiments_summary
 from app.services.monitoring_service import build_report
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+
+
+@router.get("/experiments/summary")
+def experiments(limit: int = Query(10, ge=1, le=50), container: AppContainer = Depends(get_container)) -> dict[str, Any]:
+    """The accepted evaluation baseline and the newest evaluation runs with their headline metrics (read-only)."""
+    s = container.settings
+    return experiments_summary(s.eval_dir, s.baseline_file, limit)
 
 
 @router.get("/monitoring/summary")

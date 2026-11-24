@@ -35,7 +35,7 @@ jobs:
         run: pip install -r backend/requirements-dev.txt -c backend/requirements.lock
       - name: Lint
         working-directory: backend
-        run: ruff check app tests ../scripts
+        run: ruff check app tests ../scripts ../deploy
       - name: Tests
         working-directory: backend
         run: pytest -q

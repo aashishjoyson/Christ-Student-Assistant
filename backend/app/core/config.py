@@ -92,11 +92,23 @@ class Settings(BaseSettings):
     drive_poll_enabled: bool = False
     drive_sync_interval_seconds: int = Field(300, ge=15)  # a floor, so a typo cannot hammer the Drive API
 
+    # --- Conversation memory ---
+    # Off by default: the chat then forgets everything when the server restarts (nothing a visitor typed is stored). On: the recent turns are kept in
+    # the database (emails and secret-looking values masked, applicant answers as a placeholder) and deleted after the retention period.
+    chat_history_persist: bool = False
+    chat_history_retention_days: int = Field(30, ge=1, le=365)
+
     # --- Relational store ---
     database_url: str = f"sqlite:///{(STORAGE_DIR / 'helpdesk.db').as_posix()}"
 
     # --- Applicant verification (prototype) ---
     applicant_session_ttl_minutes: int = 30
+    # Messages per client address per minute, for POST /api/chat and /api/chat/stream. A person cannot type this fast; a script or a stuck client can.
+    # Behind a reverse proxy the client address is the proxy's unless uvicorn runs with --proxy-headers (the Docker setup does).
+    chat_rate_limit_per_minute: int = Field(60, ge=1)
+    # Evaluation runs and the accepted baseline, shown on the admin page.
+    eval_dir: Path = STORAGE_DIR / "eval"
+    baseline_file: Path = REPO_ROOT / "data" / "eval" / "baselines" / "academic_real_baseline.json"
     verify_max_attempts: int = 5
     verify_window_minutes: int = 15
 

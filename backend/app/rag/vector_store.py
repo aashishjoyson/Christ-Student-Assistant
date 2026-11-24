@@ -65,6 +65,19 @@ class ChromaStore:
     def ids_for_file(self, source_file_id: str) -> list[str]:
         return sorted(self._col.get(where={"source_file_id": {"$eq": source_file_id}}, include=[])["ids"])
 
+    def all_chunks(self) -> list[Hit]:
+        """Every stored passage (id, text, metadata). For offline jobs such as building a training set; distance is 0.0 (no query)."""
+        out: list[Hit] = []
+        offset, page = 0, 1000
+        while True:
+            got = self._col.get(include=["documents", "metadatas"], limit=page, offset=offset)
+            ids = got["ids"]
+            if not ids:
+                return out
+            out.extend(Hit(id=i, text=d or "", metadata=dict(m or {}), distance=0.0)
+                       for i, d, m in zip(ids, got["documents"], got["metadatas"], strict=True))
+            offset += len(ids)
+
     def query(self, vector: Sequence[float], k: int) -> list[Hit]:
         total = self.count()
         if total == 0 or k <= 0:

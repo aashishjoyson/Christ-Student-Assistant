@@ -14,6 +14,7 @@ from app.domain.intents import Intent
 from app.domain.masking import hash_identifier
 from app.graph.state import new_turn_input
 from app.schemas.chat import ActionResult, ChatRequest, ChatResponse, CitationOut, HandledBy, Usage
+from app.services.history_store import HistoryStore
 from app.services.tracing import TraceRecorder
 
 log = logging.getLogger("chat")
@@ -28,24 +29,43 @@ class ChatError(Exception):
 
 
 class ChatService:
-    def __init__(self, graph: Any, tracer: TraceRecorder) -> None:
+    def __init__(self, graph: Any, tracer: TraceRecorder, history: HistoryStore | None = None) -> None:
         self._graph = graph
         self._tracer = tracer
+        self._history = history  # None: memory lives only in the graph and is lost on restart
+
+    def _turn_input(self, conversation_id: UUID, message_id: str, request: ChatRequest, applicant_token: str | None,
+                    stream: bool = False) -> dict[str, Any]:
+        turn = new_turn_input(conversation_id=str(conversation_id), request_id=message_id, message=request.message,
+                              model_mode=request.model_mode, applicant_token=applicant_token, stream=stream)
+        if self._history is not None:
+            config = {"configurable": {"thread_id": str(conversation_id)}}
+            known = self._graph.get_state(config).values.get("history")
+            if not known:  # a conversation the graph has not seen (the server restarted): put its stored turns back first
+                turn["history"] = [*self._history.load(str(conversation_id)), *turn["history"]]
+        return turn
+
+    def forget(self, conversation_id: UUID) -> bool:
+        """Delete everything remembered about a conversation: the stored turns and the graph's in-memory copy. True if anything was stored."""
+        stored = self._history.delete(str(conversation_id)) if self._history is not None else False
+        saver = getattr(self._graph, "checkpointer", None)
+        if saver is not None and hasattr(saver, "delete_thread"):
+            saver.delete_thread(str(conversation_id))
+        return stored
+
+    def _remember(self, conversation_id: UUID, final_state: dict[str, Any]) -> None:
+        if self._history is not None and final_state.get("history"):
+            self._history.save(str(conversation_id), list(final_state["history"]))
 
     def handle(self, request: ChatRequest, applicant_token: str | None) -> ChatResponse:
         conversation_id: UUID = request.conversation_id or uuid.uuid4()
         message_id = request.client_message_id or uuid.uuid4().hex
         started = time.perf_counter()
         out: dict[str, Any] = self._graph.invoke(
-            new_turn_input(
-                conversation_id=str(conversation_id),
-                request_id=message_id,
-                message=request.message,
-                model_mode=request.model_mode,
-                applicant_token=applicant_token,
-            ),
+            self._turn_input(conversation_id, message_id, request, applicant_token),
             config={"configurable": {"thread_id": str(conversation_id)}},
         )
+        self._remember(conversation_id, out)
         latency_ms = int((time.perf_counter() - started) * 1000)
         self._tracer.record(self._trace(out, request, conversation_id, message_id, latency_ms))
 
@@ -66,10 +86,7 @@ class ChatService:
         state: dict[str, Any] = {}
         try:
             for mode, payload in self._graph.stream(
-                new_turn_input(
-                    conversation_id=str(conversation_id), request_id=message_id, message=request.message,
-                    model_mode=request.model_mode, applicant_token=applicant_token, stream=True,
-                ),
+                self._turn_input(conversation_id, message_id, request, applicant_token, stream=True),
                 config={"configurable": {"thread_id": str(conversation_id)}},
                 stream_mode=["custom", "values"],
             ):
@@ -82,6 +99,7 @@ class ChatService:
             yield {"type": "error", "code": "internal_error", "message": "The assistant hit an unexpected error.",
                    "http_status": 500, "detail": type(exc).__name__}
             return
+        self._remember(conversation_id, state)
         latency_ms = int((time.perf_counter() - started) * 1000)
         self._tracer.record(self._trace(state, request, conversation_id, message_id, latency_ms))
         error = state.get("error")

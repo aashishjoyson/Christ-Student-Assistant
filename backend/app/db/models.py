@@ -114,6 +114,17 @@ class SyncRun(Base):
     error: Mapped[str | None] = mapped_column(Text, default=None)
 
 
+class ConversationHistory(Base):
+    """Opt-in memory of a conversation (CHAT_HISTORY_PERSIST). The turns are the ones the graph already keeps for the model: applicant-service
+    answers are a placeholder, emails and secret-looking values are masked. Deleted after CHAT_HISTORY_RETENTION_DAYS."""
+
+    __tablename__ = "conversation_history"
+
+    conversation_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    turns: Mapped[str] = mapped_column(Text)  # JSON list of {"role", "content"}
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+
+
 class Feedback(Base):
     """A thumbs up/down on one answer. Keyed by the answer's message id (the same id the trace log uses). No message text, no identity."""
 

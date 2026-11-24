@@ -1,0 +1,47 @@
+{
+  "created_at": "2026-11-24T15:07:35.458993+00:00",
+  "git": {
+    "commit": "ec5075543084b3f43d88fd98e60ea49ec674083a",
+    "dirty": true
+  },
+  "seed": 7,
+  "prompt_version": "rag-v2",
+  "teacher": {
+    "model": "gpt-6-luna",
+    "calls": 298,
+    "input_tokens": 231142,
+    "output_tokens": 16219,
+    "est_cost_usd": 0.0312
+  },
+  "golden_set": {
+    "file": "academic_real.jsonl",
+    "sha256": "2b966fdd80ea68ed44cddfea0cf51a08dd6d8a1ea6086509f54096746dbc539c",
+    "questions": 38,
+    "held_out_passages": 461
+  },
+  "examples": {
+    "total": 371,
+    "answerable": 284,
+    "refusal": 87,
+    "train": 344,
+    "val": 27
+  },
+  "per_source": {
+    "ACADEMIC CALENDAR 2026-2027_20261022032320.pdf": 100,
+    "Courses_data.csv.xlsx": 129,
+    "christuniversity_website_faq_2026-11-24.md": 19,
+    "handbook 2026_20261121092135.pdf": 123
+  },
+  "dropped": {
+    "unusable_chunk": 125,
+    "holdout_chunk": 461,
+    "refusal_context_not_clean": 62,
+    "too_few_neighbours": 2,
+    "number_not_in_cited_passage": 6,
+    "too_close_to_golden_question": 2,
+    "duplicate_question": 6
+  },
+  "train_sha256": "9c1693b38a641c9148f2329208375a1f33ac3f9a5c2c8f3638aefe1ebbee8dbf",
+  "val_sha256": "0e5def57a8f185b03cc5dbed70b1499213ddb84e54048293c880e5f4badaf4e2",
+  "format": "chat messages (system, user, assistant), identical to what the app sends to Model 2/3"
+}

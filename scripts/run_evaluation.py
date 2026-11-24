@@ -18,6 +18,7 @@ import contextlib
 import json
 import shutil
 import sys
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -40,16 +41,17 @@ from app.eval.runner import (  # noqa: E402
     snapshot_config,
     write_run,
 )
+from app.llm.factory import build_model3_client  # noqa: E402
 from app.schemas.chat import ChatRequest  # noqa: E402
 from app.services.chat_service import ChatError  # noqa: E402
 
-KNOWN_MODES = ("direct", "rag", "rag_peft")
+KNOWN_MODES = ("direct", "rag", "rag_peft", "rag_peft_base")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--set", type=Path, default=REPO_ROOT / "data" / "eval" / "academic_real.jsonl")
-    parser.add_argument("--modes", default="direct,rag", help="comma list of: direct, rag, rag_peft (Model 3 errors are recorded, never replaced)")
+    parser.add_argument("--modes", default="direct,rag", help="comma list of: direct, rag, rag_peft, rag_peft_base (the ablation: the base model on the Model 3 endpoint). Model 3 errors are recorded, never replaced")
     parser.add_argument("--limit", type=int, help="only the first N cases (smoke run)")
     parser.add_argument("--out-root", type=Path, default=REPO_ROOT / "storage" / "eval")
     parser.add_argument("--evidently", action="store_true", help="also build the Evidently report for this run")
@@ -78,16 +80,27 @@ def main() -> int:
     staging = args.out_root / f"_staging-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
     container = build_container(settings.model_copy(update={"trace_dir": staging / "traces"}))
     retriever = container.deps.retriever
-    if any(m in ("rag", "rag_peft") for m in modes) and not retriever.ready:
+    if any(m in ("rag", "rag_peft", "rag_peft_base") for m in modes) and not retriever.ready:
         print("Nothing is indexed yet: run scripts/sync_drive_once.py first.", file=sys.stderr)
         return 2
 
     llm_calls = len(cases) * len(modes)
     print(f"{len(cases)} cases x {len(modes)} modes = {llm_calls} answers (+ {len(cases)} retrieval embeddings, + routing calls when a message is unclear).")
 
+    ablation = None
+    if "rag_peft_base" in modes:
+        # Same graph, same retrieval, same prompt: only the model behind Model 3 changes to the base model served on the same endpoint.
+        base_name = settings.model3_ablation_model or settings.model3_base_model_id
+        client = build_model3_client(settings, served_model=base_name)
+        if client is None or not base_name:
+            print("rag_peft_base needs Model 3 configured (MODEL3_BASE_URL ... MODEL3_ADAPTER_ID) and MODEL3_ABLATION_MODEL.", file=sys.stderr)
+            return 2
+        ablation = build_container(settings.model_copy(update={"trace_dir": staging / "traces"}), deps_override=replace(container.deps, model3_llm=client))
+
     def ask(question: str, mode: str) -> dict:
+        target, requested = (ablation, "rag_peft") if mode == "rag_peft_base" and ablation is not None else (container, mode)
         try:
-            return container.chat_service.handle(ChatRequest(message=question, model_mode=mode), None).model_dump(mode="json")
+            return target.chat_service.handle(ChatRequest(message=question, model_mode=requested), None).model_dump(mode="json")
         except ChatError as exc:
             raise AskFailed(exc.code, str(exc)) from exc
 

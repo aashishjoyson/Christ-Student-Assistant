@@ -27,6 +27,7 @@ from app.rag.sources.local_folder import LocalFolderSource
 from app.rag.vector_store import ChromaStore
 from app.services.chat_service import ChatService
 from app.services.email.factory import build_email_provider
+from app.services.history_store import HistoryStore
 from app.services.tracing import TraceRecorder
 
 log = logging.getLogger("container")
@@ -42,6 +43,7 @@ class AppContainer:
     chat_service: ChatService
     verify_limiter: SlidingWindowLimiter
     feedback_limiter: SlidingWindowLimiter
+    chat_limiter: SlidingWindowLimiter
     ingestion: IngestionService | None = None  # local folder; None when embeddings are not configured
     drive_ingestion: IngestionService | None = None  # Google Drive; None when not configured or its credentials are unusable
     drive_error: str | None = None  # why Drive is unavailable (safe to show: no credentials, no file contents)
@@ -117,10 +119,11 @@ def build_container(
         session_factory=deps.session_factory,
         deps=deps,
         graph=graph,
-        chat_service=ChatService(graph, tracer),
+        chat_service=ChatService(graph, tracer, HistoryStore(deps.session_factory) if settings.chat_history_persist else None),
         verify_limiter=SlidingWindowLimiter(
             settings.verify_max_attempts, timedelta(minutes=settings.verify_window_minutes)
         ),
+        chat_limiter=SlidingWindowLimiter(settings.chat_rate_limit_per_minute, timedelta(minutes=1)),
         feedback_limiter=SlidingWindowLimiter(60, timedelta(minutes=10)),  # ratings per client; a thumb is cheap, a flood is not
         ingestion=local,
         drive_ingestion=drive,

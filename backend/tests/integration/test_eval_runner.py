@@ -106,6 +106,14 @@ def test_evidence_beyond_the_distance_cut_off_does_not_count_as_reaching_the_mod
     assert shown[0]["evidence_in_context"] is True
 
 
+def test_the_base_model_ablation_is_scored_like_a_document_grounded_mode() -> None:
+    rows, _ = run_cases(CASES[:1], ["rag_peft", "rag_peft_base"], good_system, retrieve, top_k=4, max_distance=0.75)
+    base = next(r for r in rows if r["mode"] == "rag_peft_base")
+    assert base["rag"] is True and base["retrieved_sources"] and base["passages_supplied"] == 2 and base["top1_distance"] == 0.31
+    summary = build_summary(rows, [], 4, None)["modes"]
+    assert summary["rag_peft_base"]["retrieval_mrr"] == 1.0 and summary["rag_peft"]["retrieval_mrr"] == 1.0  # same retrieval, so the same value
+
+
 def test_every_mode_is_run_for_every_case_and_direct_mode_has_no_retrieval_metrics() -> None:
     rows, _ = run_cases(CASES, ["direct", "rag"], good_system, retrieve, top_k=4)
     assert len(rows) == 6 and {r["mode"] for r in rows} == {"direct", "rag"}

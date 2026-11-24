@@ -23,7 +23,8 @@ from typing import Any, Protocol
 from app.eval.golden import GoldenCase, golden_fingerprint
 from app.eval.metrics import calibrate_threshold, score_row, summarize
 
-RAG_MODES = frozenset({"rag", "rag_peft"})
+# "rag_peft_base" is the ablation: the same endpoint and prompt as Model 3 but the BASE model, so (Model 3 minus this) is the effect of the adapter alone.
+RAG_MODES = frozenset({"rag", "rag_peft", "rag_peft_base"})
 
 
 class AskFailed(Exception):
