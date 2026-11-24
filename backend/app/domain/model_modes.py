@@ -21,6 +21,6 @@ MODE_LABELS: dict[ModelMode, str] = {
 # the same RAG prompt so the only difference between them is the model.
 PROMPT_VERSIONS: dict[ModelMode, str] = {
     ModelMode.DIRECT: "direct-v1",
-    ModelMode.RAG: "rag-v1",
-    ModelMode.RAG_PEFT: "rag-v1",
+    ModelMode.RAG: "rag-v2",  # v2: retrieved text can no longer forge the context delimiters
+    ModelMode.RAG_PEFT: "rag-v2",
 }

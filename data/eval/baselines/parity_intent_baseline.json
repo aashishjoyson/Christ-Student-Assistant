@@ -1,0 +1,14 @@
+{
+  "created": "2026-11-24",
+  "metric": "share of messages routed to the expected intent, per phrasing slice (deterministic rules in app/domain/intents.py)",
+  "note": "Accepted baseline. A slice may improve; it must not get worse. Target gap between slices is <= 0.10 (not yet met).",
+  "slices": {
+    "caps_punct": 1.0,
+    "emoji": 0.8333,
+    "formal": 0.8889,
+    "hinglish": 0.0,
+    "informal": 0.7778,
+    "non_native": 0.6667,
+    "typos": 0.0
+  }
+}

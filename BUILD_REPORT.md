@@ -1,5 +1,25 @@
 # Build report
 
+## Phase 7 (7.0, 7.3, 7.6) - Evidently spike, adversarial suite, parity audit (2026-11-24)
+
+| Command / check | Result |
+|---|---|
+| `pip install evidently==0.7.23` in a **throwaway** venv | Installed; needs `pandas<3` (pandas 3 breaks `import evidently`); 4 unused compiled modules blocked by Windows Application Control; `litellm` resolves next to `openai` 3.x |
+| `pytest` (backend, full) | **201 passed, 1 expected failure** (was 90 passed) |
+| `ruff check app tests ../scripts` | All checks passed |
+| `scripts/check_secrets.py` | Passed |
+| Adversarial suite: 45 structural cases through the real graph | 45/45 pass, **0 critical breaches** |
+| `scripts/evidently_report.py adversarial` / `parity` (throwaway venv) | HTML + JSON reports built; exit 0 on the real run; exit 1 when a critical breach or a slice regression is injected |
+
+**Findings**
+1. *Fixed:* a poisoned retrieved passage could forge the context delimiters (`<<<` / `>>>`). `neutralise_delimiters()` added, prompt version `rag-v2` (Models 2 and 3 share it). Regression test in `tests/unit/test_prompts_and_citations.py`.
+2. *Open (strict xfail):* the deterministic intent rules route typo'd and Hinglish messages to general Q&A (0% correct) while ALL-CAPS text is 100% correct. Fails safe, but those students cannot reach interview, status or email help.
+3. *Documented:* Cyrillic look-alike characters evade the "unsupported action" regex (adv-031); harmless because the LLM path has no tools, so the guarantee comes from capabilities, not from the regex.
+
+Not done: the live-LLM variant of the adversarial suite, Evidently inside `backend/.venv`, the CI workflow (7.5), applicant-side fairness slices.
+
+---
+
 ## Phase 1 - install, run the integration suite (2026-11-23)
 
 Environment: Windows 11, Python 3.12.10, Node 24.13.0 / npm 11.6.2. Every row below was run in the Phase 1 session.

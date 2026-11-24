@@ -30,6 +30,9 @@ outputs/
 
 # Private documents (keep real university documents in Drive only)
 data/private/
+# Real university documents dropped into the sample folder stay local; only SYNTHETIC_* samples are tracked
+data/sample_docs/*
+!data/sample_docs/SYNTHETIC_*
 data/peft/*.jsonl
 
 # Python

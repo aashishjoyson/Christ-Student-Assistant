@@ -68,8 +68,20 @@ def format_location(chunk: RetrievedChunk) -> str:
     return ", ".join(parts)
 
 
+def neutralise_delimiters(text: str) -> str:
+    """Retrieved text is untrusted: it must not be able to forge the '<<<' / '>>>' markers that frame the context block.
+
+    The text is kept (the model still reads it); only the marker sequences are broken up. Added in rag-v2 after the
+    adversarial suite (adv-048) showed a poisoned passage could close the block early.
+    """
+    return text.replace("<<<", "< < <").replace(">>>", "> > >")
+
+
 def format_context(chunks: Sequence[RetrievedChunk]) -> str:
-    blocks = [f"[{i}] (source: {format_location(c)})\n{c.text}" for i, c in enumerate(chunks, start=1)]
+    blocks = [
+        f"[{i}] (source: {neutralise_delimiters(format_location(c))})\n{neutralise_delimiters(c.text)}"
+        for i, c in enumerate(chunks, start=1)
+    ]
     return "\n\n".join(blocks)
 
 

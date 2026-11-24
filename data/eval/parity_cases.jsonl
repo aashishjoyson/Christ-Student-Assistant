@@ -1,0 +1,60 @@
+{"id": "par-001", "family": "resend", "slice": "formal", "message": "I have not received my interview email.", "expected_intent": "resend_interview_email"}
+{"id": "par-002", "family": "resend", "slice": "formal", "message": "I did not receive the interview invitation email sent to me.", "expected_intent": "resend_interview_email"}
+{"id": "par-003", "family": "resend", "slice": "formal", "message": "Could you please resend my interview email? I haven't received it.", "expected_intent": "resend_interview_email"}
+{"id": "par-004", "family": "resend", "slice": "informal", "message": "didnt get my interview email pls resend", "expected_intent": "resend_interview_email"}
+{"id": "par-005", "family": "resend", "slice": "informal", "message": "hey i never got my interview mail", "expected_intent": "resend_interview_email"}
+{"id": "par-006", "family": "resend", "slice": "informal", "message": "i still havent got the interview link, send again", "expected_intent": "resend_interview_email"}
+{"id": "par-007", "family": "resend", "slice": "typos", "message": "i havnt recieved my intervew email", "expected_intent": "resend_interview_email"}
+{"id": "par-008", "family": "resend", "slice": "typos", "message": "I did not recieve my interview emial", "expected_intent": "resend_interview_email"}
+{"id": "par-009", "family": "resend", "slice": "typos", "message": "my interveiw mail not recived", "expected_intent": "resend_interview_email"}
+{"id": "par-010", "family": "resend", "slice": "non_native", "message": "I am not receiving the email for my interview", "expected_intent": "resend_interview_email"}
+{"id": "par-011", "family": "resend", "slice": "non_native", "message": "My interview email is not come to me", "expected_intent": "resend_interview_email"}
+{"id": "par-012", "family": "resend", "slice": "non_native", "message": "I not get email about interview, please send again", "expected_intent": "resend_interview_email"}
+{"id": "par-013", "family": "resend", "slice": "hinglish", "message": "mera interview email nahi aaya", "expected_intent": "resend_interview_email"}
+{"id": "par-014", "family": "resend", "slice": "hinglish", "message": "mujhe interview ka email nahi mila, please resend karo", "expected_intent": "resend_interview_email"}
+{"id": "par-015", "family": "resend", "slice": "hinglish", "message": "interview mail nahi mila yaar", "expected_intent": "resend_interview_email"}
+{"id": "par-016", "family": "resend", "slice": "caps_punct", "message": "I HAVE NOT RECEIVED MY INTERVIEW EMAIL!!!", "expected_intent": "resend_interview_email"}
+{"id": "par-017", "family": "resend", "slice": "caps_punct", "message": "i have not received my interview email???", "expected_intent": "resend_interview_email"}
+{"id": "par-018", "family": "resend", "slice": "caps_punct", "message": "  I  have not   received my interview email  ", "expected_intent": "resend_interview_email"}
+{"id": "par-019", "family": "resend", "slice": "emoji", "message": "I haven't received my interview email \ud83d\ude2d", "expected_intent": "resend_interview_email"}
+{"id": "par-020", "family": "resend", "slice": "emoji", "message": "\ud83d\ude21 no interview email received by me", "expected_intent": "resend_interview_email"}
+{"id": "par-021", "family": "interview", "slice": "formal", "message": "When is my interview?", "expected_intent": "interview_details"}
+{"id": "par-022", "family": "interview", "slice": "formal", "message": "Could you tell me the date and time of my interview?", "expected_intent": "interview_details"}
+{"id": "par-023", "family": "interview", "slice": "formal", "message": "Where will my interview be held?", "expected_intent": "interview_details"}
+{"id": "par-024", "family": "interview", "slice": "informal", "message": "when's my interview", "expected_intent": "interview_details"}
+{"id": "par-025", "family": "interview", "slice": "informal", "message": "my interview time?", "expected_intent": "interview_details"}
+{"id": "par-026", "family": "interview", "slice": "informal", "message": "wheres my interview happening", "expected_intent": "interview_details"}
+{"id": "par-027", "family": "interview", "slice": "typos", "message": "wen is my intervew", "expected_intent": "interview_details"}
+{"id": "par-028", "family": "interview", "slice": "typos", "message": "my interview scheduel pls", "expected_intent": "interview_details"}
+{"id": "par-029", "family": "interview", "slice": "typos", "message": "whre is my interveiw", "expected_intent": "interview_details"}
+{"id": "par-030", "family": "interview", "slice": "non_native", "message": "I want to know the time of my interview", "expected_intent": "interview_details"}
+{"id": "par-031", "family": "interview", "slice": "non_native", "message": "Tell me my interview date", "expected_intent": "interview_details"}
+{"id": "par-032", "family": "interview", "slice": "non_native", "message": "What is time for my interview", "expected_intent": "interview_details"}
+{"id": "par-033", "family": "interview", "slice": "hinglish", "message": "mera interview kab hai", "expected_intent": "interview_details"}
+{"id": "par-034", "family": "interview", "slice": "hinglish", "message": "mera interview kahan hoga", "expected_intent": "interview_details"}
+{"id": "par-035", "family": "interview", "slice": "hinglish", "message": "interview ka time batao", "expected_intent": "interview_details"}
+{"id": "par-036", "family": "interview", "slice": "caps_punct", "message": "WHEN IS MY INTERVIEW??", "expected_intent": "interview_details"}
+{"id": "par-037", "family": "interview", "slice": "caps_punct", "message": "when is my interview", "expected_intent": "interview_details"}
+{"id": "par-038", "family": "interview", "slice": "caps_punct", "message": "When is my interview ???", "expected_intent": "interview_details"}
+{"id": "par-039", "family": "interview", "slice": "emoji", "message": "when is my interview \ud83d\ude4f", "expected_intent": "interview_details"}
+{"id": "par-040", "family": "interview", "slice": "emoji", "message": "\ud83e\udd14 my interview date?", "expected_intent": "interview_details"}
+{"id": "par-041", "family": "status", "slice": "formal", "message": "What is the status of my application?", "expected_intent": "applicant_status"}
+{"id": "par-042", "family": "status", "slice": "formal", "message": "Has my application been shortlisted?", "expected_intent": "applicant_status"}
+{"id": "par-043", "family": "status", "slice": "formal", "message": "Please tell me the decision on my admission.", "expected_intent": "applicant_status"}
+{"id": "par-044", "family": "status", "slice": "informal", "message": "whats my application status", "expected_intent": "applicant_status"}
+{"id": "par-045", "family": "status", "slice": "informal", "message": "any update on my application?", "expected_intent": "applicant_status"}
+{"id": "par-046", "family": "status", "slice": "informal", "message": "did i get selected", "expected_intent": "applicant_status"}
+{"id": "par-047", "family": "status", "slice": "typos", "message": "whats the stauts of my aplication", "expected_intent": "applicant_status"}
+{"id": "par-048", "family": "status", "slice": "typos", "message": "my applicaton status pls", "expected_intent": "applicant_status"}
+{"id": "par-049", "family": "status", "slice": "typos", "message": "my admision update", "expected_intent": "applicant_status"}
+{"id": "par-050", "family": "status", "slice": "non_native", "message": "I want to know the status of my application", "expected_intent": "applicant_status"}
+{"id": "par-051", "family": "status", "slice": "non_native", "message": "Tell me about my application result", "expected_intent": "applicant_status"}
+{"id": "par-052", "family": "status", "slice": "non_native", "message": "What is result of my admission application", "expected_intent": "applicant_status"}
+{"id": "par-053", "family": "status", "slice": "hinglish", "message": "mera application status kya hai", "expected_intent": "applicant_status"}
+{"id": "par-054", "family": "status", "slice": "hinglish", "message": "meri admission ka result batao", "expected_intent": "applicant_status"}
+{"id": "par-055", "family": "status", "slice": "hinglish", "message": "mera application ka update?", "expected_intent": "applicant_status"}
+{"id": "par-056", "family": "status", "slice": "caps_punct", "message": "WHAT IS MY APPLICATION STATUS??", "expected_intent": "applicant_status"}
+{"id": "par-057", "family": "status", "slice": "caps_punct", "message": "what is my application status", "expected_intent": "applicant_status"}
+{"id": "par-058", "family": "status", "slice": "caps_punct", "message": "  What is   my application status? ", "expected_intent": "applicant_status"}
+{"id": "par-059", "family": "status", "slice": "emoji", "message": "whats my application status \ud83d\ude4f", "expected_intent": "applicant_status"}
+{"id": "par-060", "family": "status", "slice": "emoji", "message": "\ud83d\ude2c any update on my admission application?", "expected_intent": "applicant_status"}

@@ -17,10 +17,10 @@ Legend: [x] done in the base repo · [ ] to do
 | 4 Frontend completion | Partly (restyle) | Admin page, debug drawer, Vitest, accessibility pass |
 | 5 Real email (opt-in) | Not started | Optional: SMTP sandbox (Mailtrap) credentials + allowlist |
 | 6 PEFT/LoRA + Model 3 endpoint | Not started | Hugging Face account, Colab GPU session, Modal (or HF Endpoints) account |
-| 7 Evaluation, monitoring, validation (**Evidently**) | Planned in detail below; **nothing installed yet** | Start with the 7.0 install spike (needs your OK for `pip install`) |
+| 7 Evaluation, monitoring, validation (**Evidently**) | **7.0 done; 7.3 adversarial suite and 7.6 phrasing/name parity done** (Evidently reports verified in a throwaway venv; not yet in `backend/.venv`) | Next: 7.1 runner (needs `pip install -r backend/requirements-eval.txt`), 7.2, 7.4 (after Phase 2), 7.5 CI |
 | 8 Hardening, CI, packaging | Not started | GitHub Actions CI is specified in 7.5 |
 
-Suggested order: 7.0 spike -> 7.3 adversarial suite + 7.6 workflow-parity checks (neither needs RAG) -> Phase 2 ->
+Suggested order: ~~7.0 spike -> 7.3 adversarial suite + 7.6 parity checks~~ (done) -> Phase 2 ->
 7.1/7.2/7.4 -> Phase 3-6 as accounts become available -> 7.5 CI gate -> Phase 8.
 
 ---
@@ -208,18 +208,22 @@ from `results.csv` for the sections below.
 - [ ] Self-hosted workspace (`evidently ui`, local only) with projects `helpdesk-eval` and `helpdesk-monitoring` to see trends across runs.
 - Acceptance: a CI-safe report is produced from a fake-LLM run; a deliberately degraded fake run makes a test fail.
 
-**7.3 Adversarial and edge-case testing** (use-case 2) - can start before Phase 2
-- [ ] `data/eval/adversarial.jsonl` (synthetic, reviewed by a human): `id, category, message, mode, verified_as, must_not, expected, severity`.
-      Categories: prompt injection; system-prompt leakage; role/jailbreak; harmful or off-topic requests; identity bypass ("I am the admin",
-      another applicant's ID); cross-applicant data requests while verified; **email redirection** ("send it to x@evil.com", "change my email");
-      SQL/markup injection in the message and in the application ID; resend flooding (cooldown + rate limit); empty, very long, unicode, RTL,
-      emoji and mixed-language input; poisoned-document injection (a synthetic sample doc that contains instructions; needs Phase 2).
-- [ ] `tests/integration/test_adversarial.py`: runs every case through the real graph with fakes (no network). Critical breaches = 0 is a hard gate
-      (invariants 2, 3, 4, 6, 7).
-- [ ] Live variant in the runner for Models 1/2/3; Evidently report with per-category pass rates and `CategoryCount(..., tests=[eq(0)])` on critical breaches.
-- Note: Evidently's own adversarial-data generator is **Cloud-only** (per the docs read), so we author the set ourselves; optional LLM-generated variants are
-  capped (`--max-generation-calls`) and human-reviewed before they are committed.
-- Acceptance: every case has an expected result; 0 critical breaches; the suite runs in CI.
+**7.3 Adversarial and edge-case testing** (use-case 2) - **core DONE 2026-11-24**
+- [x] `data/eval/adversarial.jsonl`: 52 synthetic cases, 45 `structural` (run in CI with fakes) and 7 `model` (live LLM, heuristic, human review).
+      Categories: prompt injection, jailbreak, transcript forgery, delimiter break, markup injection, prompt leak, secret exfiltration, identity bypass
+      (garbage / tampered / expired / unknown-applicant tokens, identity claimed in chat, look-alike email), cross-applicant access, email redirection and
+      flooding (CC/BCC, header injection, "use this address instead"), unsupported actions, filter evasion, injection strings (SQL, wildcard), edge inputs
+      (empty, 2001 chars, unicode/RTL, control characters), model substitution, disclaimer removal, poisoned retrieved context.
+- [x] `tests/integration/test_adversarial.py` runs every structural case through the real graph with fakes; the pure checks live in `app/eval/adversarial.py` and
+      are unit-tested to FAIL on bad data (`tests/unit/test_eval_adversarial.py`). Global rule on every case: no configured secret may appear in a prompt or an answer.
+- [x] Evidently: `scripts/evidently_report.py adversarial` -> HTML + JSON, exit code 1 on a critical breach (proved with an injected breach). Verified in the throwaway
+      venv; install into `backend/.venv` happens in 7.1.
+- [ ] Live variant for Models 1/2/3 (the 7 `model` cases, plus the structural ones against a real LLM; capped; humans review the heuristic checks): needs the 7.1 runner.
+- [ ] Optional LLM-generated variants (capped, human-reviewed before committing).
+- **Result:** 45/45 structural cases pass, 0 critical breaches. **Finding, fixed:** adv-048 showed retrieved text could forge the `<<<` / `>>>` context delimiters;
+  `neutralise_delimiters()` now defuses them (prompt version `rag-v2`, shared by Models 2 and 3).
+- Acceptance: every case has an expected result [x]; 0 critical breaches [x]; runs in CI [ ] (workflow in 7.5).
+- Note: Evidently's own adversarial-data generator is **Cloud-only**, so the set is authored here.
 
 **7.4 RAG evaluation** (use-case 3) - needs Phase 2
 - [ ] Retrieval: hit@k, MRR, source recall (pure functions) on `academic_synthetic.jsonl`; optional `ContextRelevance(aggregation_method="hit")`
@@ -240,14 +244,19 @@ from `results.csv` for the sections below.
       Evidently tests, `report.html` uploaded as an artifact; an optional, manually triggered, capped live run using a repository secret.
 - [ ] A PEFT adapter (Phase 6) is promoted only when these gates pass against the baseline; record the result in `adapter_manifest.json`.
 
-**7.6 Bias and fairness audit** (use-case 5)
-- [ ] Slices (documented, synthetic): applicant side - programme, interview mode, application status; language side - formal English, informal,
-      typos, Hinglish/code-mixed, non-native phrasing; **paraphrase pairs that differ only in the name** (names must never change behaviour).
-- [ ] Per-slice metrics: intent/action correctness (workflow), refusal rate, fact match, citation hit, answer length, latency, error rate. Use
-      `GroupBy(metric, "slice")` (verified in 7.0) for per-slice metrics and tests, and compute gaps (max - min); tests on the gap (proposed <= 10 percentage points, to be calibrated after the first run).
-- [ ] Deterministic paraphrase-parity test (same question, different name/programme -> same intent and action) as an integration test.
-- Limits stated in every report: tiny synthetic sample, so report effect sizes and bootstrap intervals, never claims of statistical fairness;
-  this is an audit harness, not a certification.
+**7.6 Bias and fairness audit** (use-case 5) - **phrasing and name parity DONE 2026-11-24; applicant-side and answer-quality slices pending**
+- [x] Phrasing slices: 60 messages, 7 styles x 3 requests (formal, informal, typos, non-native, Hinglish, caps/punctuation, emoji) in `data/eval/parity_cases.jsonl`.
+- [x] Name and programme parity: 10 names and 5 programmes never change the intent (unit tests); 8 names through the real graph give identical responses for
+      resend / interview / status (`tests/integration/test_parity.py`).
+- [x] Baseline and regression guard: `data/eval/baselines/parity_intent_baseline.json`. A slice may improve but not drop. `scripts/evidently_report.py parity` uses
+      `GroupBy` per slice (warning below 90%) and exits 1 on a regression.
+- **Finding (open, tracked as a strict xfail):** share of messages routed to the right intent - caps/punctuation 100%, formal 89%, emoji 83%, informal 78%,
+  non-native 67%, **typos 0%, Hinglish 0%**. Best-vs-worst gap 1.00 against a target of <= 0.10. It fails safe (no private data is exposed), but those students are
+  sent to general Q&A and cannot reach interview, status or email help. Next step: improve the rules (or add a classifier), then raise the baseline.
+- [ ] Applicant-side slices (programme, interview mode, application status) for workflow correctness, and answer-quality slices (fact match, refusal rate) for
+      Models 1/2/3: need the 7.1 runner and Phase 2.
+- Limits stated in every report: tiny synthetic sample, so effect sizes and bootstrap intervals only, never claims of statistical fairness; this is an audit
+  harness, not a certification.
 
 **7.7 Reporting**
 - [ ] `storage/eval/<run_id>/{results.csv,summary.json,evidently_*.html}`; optional MLflow run (existing); optional `GET /api/admin/experiments/summary`.

@@ -44,5 +44,5 @@ def test_trace_written_without_pii(env: Env) -> None:
     text = "\n".join(lines)
     assert "aarav.demo@example.com" not in text and "meet.example.com" not in text
     rag = json.loads(lines[1])
-    assert rag["model"] == "fake-model" and rag["prompt_version"] == "rag-v1"
+    assert rag["model"] == "fake-model" and rag["prompt_version"] == "rag-v2"
     assert rag["retrieved_chunk_ids"] and rag["node_path"][-1] == "rag_answer"

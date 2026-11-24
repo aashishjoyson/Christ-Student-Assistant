@@ -23,6 +23,10 @@ def included(path: Path) -> bool:
     parts = rel.parts
     if any(p in EXCLUDE_DIRS for p in parts) or ".claude/worktrees" in rel.as_posix():
         return False
+    posix = rel.as_posix()
+    # Real university documents never go into a package: only the SYNTHETIC_ samples may.
+    if posix.startswith("data/private/") or (posix.startswith("data/sample_docs/") and not path.name.startswith("SYNTHETIC_")):
+        return False
     if path.name in EXCLUDE_NAMES or path.suffix in EXCLUDE_SUFFIXES:
         return False
     return not (path.name.startswith(".env.") and path.name != ".env.example")

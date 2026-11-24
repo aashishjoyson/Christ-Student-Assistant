@@ -24,6 +24,7 @@ Work one phase at a time with `/phase <n>`; finish with `/verify` and `/guardrai
 - `backend/app/domain/` - PURE stdlib logic (intents, prompts, chunking, citations, notification policy, tokens, masking). No framework, DB or network imports here.
 - `backend/app/graph/` - LangGraph state, pure routing, nodes, builder. Nodes depend on protocols in `GraphDeps`.
 - `backend/app/db/repositories/` - the ONLY place that queries applicant data.
+- `backend/app/eval/` - PURE stdlib evaluation checks (adversarial cases, parity metrics) shared by tests and the Evidently reports; Evidently itself (`requirements-eval.txt`) is used only from `scripts/`, never from `app/`.
 - `backend/app/llm/` - one `OpenAICompatibleChatClient` for OpenAI, OpenRouter and the Model 3 endpoint.
 - `backend/app/rag/` - `Retriever` / `DocumentSource` protocols (Chroma + sources arrive in Phases 2-3).
 - `backend/app/container.py` - the only place concrete implementations are constructed.
