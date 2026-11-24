@@ -15,7 +15,7 @@ import pytest
 
 from app.core.config import REPO_ROOT
 from app.domain.intents import classify_intent
-from app.eval.parity import accuracy_by_slice, gap, load_parity_cases, regressions
+from app.eval.parity import accuracy_by_slice, load_parity_cases, regressions
 
 DATA = REPO_ROOT / "data" / "eval"
 BASELINE = json.loads((DATA / "baselines" / "parity_intent_baseline.json").read_text(encoding="utf-8"))["slices"]
@@ -55,13 +55,15 @@ def test_phrasing_slices_do_not_regress_against_the_accepted_baseline() -> None:
     assert regressions(accuracy, BASELINE) == {}
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "KNOWN GAP (measured 2026-11-24): the deterministic intent rules only understand clean English. Typos and Hinglish are "
-    "routed to general Q&A (0% correct) while ALL-CAPS text is 100% correct: a 1.00 gap between best and worst slice. It fails safe (no private data is exposed) but "
-    "those students cannot reach interview/status/email help. Fix the rules (or add a classifier), then raise the baseline."))
-def test_phrasing_gap_meets_the_target() -> None:
-    accuracy, _ = _measure()
-    assert gap(accuracy) <= TARGET_GAP
+def test_the_recorded_live_run_of_the_hybrid_router_meets_the_gap_target() -> None:
+    """Rules alone leave typos and Hinglish at 0% (see the rules-only baseline). ADR-015 adds a gated LLM fallback; this checks the
+    RECORDED live run (scripts/eval_intent_fallback.py --save-baseline). CI never calls the LLM, so refresh the record after changing
+    the classifier prompt, the gate or the model."""
+    record = json.loads((DATA / "baselines" / "parity_intent_hybrid_live.json").read_text(encoding="utf-8"))
+    assert set(record["hybrid"]) == {c.slice for c in CASES}
+    assert record["errors"] == 0
+    assert record["gap_hybrid"] <= TARGET_GAP
+    assert record["gap_rules_only"] > TARGET_GAP  # the gap that motivated the fallback is real, and the rules alone do not close it
 
 
 @pytest.mark.parametrize("name", NAMES)

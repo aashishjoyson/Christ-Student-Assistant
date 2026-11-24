@@ -250,9 +250,9 @@ from `results.csv` for the sections below.
       resend / interview / status (`tests/integration/test_parity.py`).
 - [x] Baseline and regression guard: `data/eval/baselines/parity_intent_baseline.json`. A slice may improve but not drop. `scripts/evidently_report.py parity` uses
       `GroupBy` per slice (warning below 90%) and exits 1 on a regression.
-- **Finding (open, tracked as a strict xfail):** share of messages routed to the right intent - caps/punctuation 100%, formal 89%, emoji 83%, informal 78%,
-  non-native 67%, **typos 0%, Hinglish 0%**. Best-vs-worst gap 1.00 against a target of <= 0.10. It fails safe (no private data is exposed), but those students are
-  sent to general Q&A and cannot reach interview, status or email help. Next step: improve the rules (or add a classifier), then raise the baseline.
+- **Finding, FIXED 2026-11-24 (ADR-015):** rules alone route typos and Hinglish at **0%** (caps 100%, formal 89%, emoji 83%, informal 78%, non-native 67%); best-vs-worst
+  gap 1.00 against a target of <= 0.10. Fix: a gated, label-only LLM fallback. Live result (gpt-6-luna, run twice): **60/60 correct, gap 0.00**, 26 calls, about $0.0009,
+  recorded in `data/eval/baselines/parity_intent_hybrid_live.json`. CI keeps guarding the rules-only baseline and uses a scripted classifier.
 - [ ] Applicant-side slices (programme, interview mode, application status) for workflow correctness, and answer-quality slices (fact match, refusal rate) for
       Models 1/2/3: need the 7.1 runner and Phase 2.
 - Limits stated in every report: tiny synthetic sample, so effect sizes and bootstrap intervals only, never claims of statistical fairness; this is an audit

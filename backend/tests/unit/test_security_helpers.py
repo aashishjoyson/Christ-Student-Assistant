@@ -46,3 +46,24 @@ def test_rate_limiter_window() -> None:
     assert limiter.hit("k", NOW + timedelta(minutes=1))
     assert not limiter.hit("k", NOW + timedelta(minutes=2))
     assert limiter.hit("k", NOW + timedelta(minutes=16))
+
+
+# ---- trace redaction: token COUNTS are metrics, token VALUES are secrets ----
+def test_numeric_token_counts_survive_redaction() -> None:
+    from app.domain.redaction import redact
+
+    out = redact({"input_tokens": 120, "output_tokens": 20, "intent_llm_input_tokens": 90, "intent_llm_output_tokens": 4, "total_tokens": None})
+    assert out == {"input_tokens": 120, "output_tokens": 20, "intent_llm_input_tokens": 90, "intent_llm_output_tokens": 4, "total_tokens": None}
+
+
+def test_secret_looking_keys_are_still_redacted_even_with_numbers_or_odd_values() -> None:
+    from app.domain.redaction import redact
+
+    out = redact({
+        "session_token": "abc.def", "applicant_token": 12345, "api_key": "sk-test", "password": 1, "Authorization": "Bearer x",
+        "input_tokens": "sk" + "-proj-" + "x" * 30,  # a string under a count key is NOT a count (built at runtime: no key-shaped literal)
+        "token": 7, "refresh_token_count_secret": 3,
+    })
+    assert out["session_token"] == out["applicant_token"] == out["api_key"] == out["password"] == out["Authorization"] == "[REDACTED]"
+    assert out["token"] == "[REDACTED]" and out["refresh_token_count_secret"] == "[REDACTED]"
+    assert "sk-proj" not in str(out["input_tokens"])

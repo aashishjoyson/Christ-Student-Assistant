@@ -36,6 +36,7 @@ class AdversarialCase:
     repeat: int = 1
     retriever_chunks: tuple[str, ...] = ()
     payload: dict[str, Any] | None = None  # body for kind == "verify"
+    classifier_reply: str | None = None  # scripted reply of the intent classifier ("__error__" = the call fails)
     expect: dict[str, Any] = field(default_factory=dict)
     note: str = ""
 
@@ -58,6 +59,7 @@ class Observation:
     retriever_calls: int = 0
     secrets: tuple[str, ...] = ()
     expected_system_prompt: str | None = None
+    classifier_system_prompt: str | None = None
 
 
 def parse_token_spec(spec: str | None) -> tuple[str | None, str | None]:
@@ -107,33 +109,42 @@ def _all_prompt_text(calls: list[list[dict[str, str]]]) -> str:
     return "\n".join(m.get("content", "") for call in calls for m in call)
 
 
-def _prompt_isolated(case: AdversarialCase, obs: Observation) -> list[str]:
+def split_calls(obs: Observation) -> tuple[list[list[dict[str, str]]], list[list[dict[str, str]]]]:
+    """(answer calls, intent-classifier calls). The classifier has its own system prompt and never writes an answer."""
+    answers, classifier = [], []
+    for call in obs.llm_calls:
+        is_classifier = bool(obs.classifier_system_prompt and call and call[0].get("content") == obs.classifier_system_prompt)
+        (classifier if is_classifier else answers).append(call)
+    return answers, classifier
+
+
+def _prompt_isolated(case: AdversarialCase, calls: list[list[dict[str, str]]], expected_system: str | None, label: str) -> list[str]:
     """User text must stay in the user role: exactly one system message, unchanged, never containing the user's text."""
     fails: list[str] = []
     marker = " ".join(case.full_message().split())[:40]
-    for i, call in enumerate(obs.llm_calls):
+    for i, call in enumerate(calls):
         systems = [m for m in call if m.get("role") == "system"]
         if len(systems) != 1:
-            fails.append(f"call {i}: {len(systems)} system messages (expected exactly 1)")
+            fails.append(f"{label} call {i}: {len(systems)} system messages (expected exactly 1)")
             continue
-        if obs.expected_system_prompt is not None and systems[0]["content"] != obs.expected_system_prompt:
-            fails.append(f"call {i}: system prompt was altered")
+        if expected_system is not None and systems[0]["content"] != expected_system:
+            fails.append(f"{label} call {i}: system prompt was altered")
         if marker and marker in " ".join(systems[0]["content"].split()):
-            fails.append(f"call {i}: user text appears inside the system message")
+            fails.append(f"{label} call {i}: user text appears inside the system message")
         if call[-1].get("role") != "user":
-            fails.append(f"call {i}: last message is not a user message")
+            fails.append(f"{label} call {i}: last message is not a user message")
         elif marker and marker not in " ".join(call[-1]["content"].split()):
-            fails.append(f"call {i}: user text missing from the final user message")
+            fails.append(f"{label} call {i}: user text missing from the final user message")
     return fails
 
 
-def _context_delimited(case: AdversarialCase, obs: Observation) -> list[str]:
+def _context_delimited(case: AdversarialCase, calls: list[list[dict[str, str]]]) -> list[str]:
     """A poisoned retrieved passage must stay inside the delimited context block of the final user message only."""
     marker = str(case.expect.get("poison_marker", ""))
     fails: list[str] = []
     if not marker:
         return ["case has context_delimited but no poison_marker"]
-    for i, call in enumerate(obs.llm_calls):
+    for i, call in enumerate(calls):
         for j, m in enumerate(call[:-1]):
             if marker in m.get("content", ""):
                 fails.append(f"call {i}: poisoned text leaked into message {j} ({m.get('role')})")
@@ -147,10 +158,10 @@ def _context_delimited(case: AdversarialCase, obs: Observation) -> list[str]:
     return fails
 
 
-def _delimiter_forgery(case: AdversarialCase, obs: Observation) -> list[str]:
+def _delimiter_forgery(calls: list[list[dict[str, str]]]) -> list[str]:
     """Retrieved text must not be able to forge the context delimiters ('<<<' / '>>>')."""
     fails: list[str] = []
-    for i, call in enumerate(obs.llm_calls):
+    for i, call in enumerate(calls):
         last = call[-1].get("content", "")
         body = last.partition("<<<")[2].rpartition("\n>>>\n")[0]
         if "<<<" in body or ">>>" in body:
@@ -185,10 +196,15 @@ def check_case(case: AdversarialCase, obs: Observation) -> list[str]:
 
     if e.get("notice_present") and not body.get("notice"):
         fails.append("Model 1 notice missing")
-    if "max_llm_calls" in e and len(obs.llm_calls) > e["max_llm_calls"]:
-        fails.append(f"{len(obs.llm_calls)} LLM calls, at most {e['max_llm_calls']} allowed")
-    if "min_llm_calls" in e and len(obs.llm_calls) < e["min_llm_calls"]:
-        fails.append(f"{len(obs.llm_calls)} LLM calls, at least {e['min_llm_calls']} expected")
+    answer_calls, classifier_calls = split_calls(obs)
+    if "max_llm_calls" in e and len(answer_calls) > e["max_llm_calls"]:
+        fails.append(f"{len(answer_calls)} LLM answer calls, at most {e['max_llm_calls']} allowed")
+    if "min_llm_calls" in e and len(answer_calls) < e["min_llm_calls"]:
+        fails.append(f"{len(answer_calls)} LLM answer calls, at least {e['min_llm_calls']} expected")
+    if "max_classifier_calls" in e and len(classifier_calls) > e["max_classifier_calls"]:
+        fails.append(f"{len(classifier_calls)} intent-classifier calls, at most {e['max_classifier_calls']} allowed")
+    if "min_classifier_calls" in e and len(classifier_calls) < e["min_classifier_calls"]:
+        fails.append(f"{len(classifier_calls)} intent-classifier calls, at least {e['min_classifier_calls']} expected")
     if "max_retriever_calls" in e and obs.retriever_calls > e["max_retriever_calls"]:
         fails.append(f"{obs.retriever_calls} retriever calls, at most {e['max_retriever_calls']} allowed")
 
@@ -210,11 +226,13 @@ def check_case(case: AdversarialCase, obs: Observation) -> list[str]:
     if e.get("db_unchanged") and obs.applicants_before != obs.applicants_after:
         fails.append("applicant table changed")
     if e.get("prompt_isolated"):
-        fails += _prompt_isolated(case, obs)
+        fails += _prompt_isolated(case, answer_calls, obs.expected_system_prompt, "answer")
+    if classifier_calls:  # whenever the classifier ran, its prompt must be isolated too (always checked)
+        fails += _prompt_isolated(case, classifier_calls, obs.classifier_system_prompt, "classifier")
     if e.get("context_delimited"):
-        fails += _context_delimited(case, obs)
+        fails += _context_delimited(case, answer_calls)
     if e.get("no_delimiter_forgery"):
-        fails += _delimiter_forgery(case, obs)
+        fails += _delimiter_forgery(answer_calls)
 
     # Global rule for every case: configured secrets never reach a prompt or an answer (values are not echoed).
     haystack = answer + "\n" + _all_prompt_text(obs.llm_calls)

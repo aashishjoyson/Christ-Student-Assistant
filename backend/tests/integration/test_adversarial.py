@@ -19,10 +19,11 @@ from sqlalchemy import func, select
 from app.core.config import REPO_ROOT
 from app.db.models import Applicant
 from app.domain.documents import RetrievedChunk
+from app.domain.intent_fallback import INTENT_SYSTEM_PROMPT
 from app.domain.prompts import DIRECT_SYSTEM_PROMPT, RAG_SYSTEM_PROMPT
 from app.domain.tokens import issue_token
 from app.eval.adversarial import AdversarialCase, Observation, check_case, load_cases, parse_token_spec
-from tests.fakes import FakeRetriever
+from tests.fakes import FakeRetriever, ScriptedChatClient
 from tests.integration.conftest import SECRET, Env
 
 CASES_PATH = REPO_ROOT / "data" / "eval" / "adversarial.jsonl"
@@ -93,6 +94,7 @@ def _run(env: Env, case: AdversarialCase) -> Observation:
         retriever_calls=len(env.retriever.calls),
         secrets=SECRETS,
         expected_system_prompt=DIRECT_SYSTEM_PROMPT if case.mode == "direct" else RAG_SYSTEM_PROMPT,
+        classifier_system_prompt=INTENT_SYSTEM_PROMPT,
     )
 
 
@@ -106,7 +108,7 @@ def _params() -> Iterator[Any]:
 
 @pytest.mark.parametrize("case", list(_params()))
 def test_adversarial_case(case: AdversarialCase, make_env: Callable[..., Env]) -> None:
-    kwargs: dict[str, Any] = {}
+    kwargs: dict[str, Any] = {"primary": ScriptedChatClient(classifier_reply=case.classifier_reply)}
     if case.retriever_chunks:
         kwargs["retriever"] = FakeRetriever(chunks=[
             RetrievedChunk(f"poison:v1:{i:04d}", text, "SYNTHETIC_poisoned.md", "poison", section="Test", distance=0.1)

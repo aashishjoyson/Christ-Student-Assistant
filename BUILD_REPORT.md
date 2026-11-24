@@ -1,5 +1,28 @@
 # Build report
 
+## LLM intent fallback, Evidently in the project venv, trace-redaction fix (2026-11-24)
+
+| Command / check | Result |
+|---|---|
+| `pip install -r backend/requirements-eval.txt` into `backend/.venv` | Installed (evidently 0.7.23, pandas 2.3.3); no existing package changed |
+| `pytest` (full) | **All pass, no expected failures left** (the phrasing xfail was replaced by a check of the recorded live result) |
+| `ruff check app tests ../scripts` | All checks passed |
+| `scripts/evidently_report.py` with `backend/.venv` | Adversarial and parity reports build; exit 0 |
+| `scripts/eval_intent_fallback.py --save-baseline` (live, `gpt-6-luna`, run twice) | **60/60 routed correctly, gap 0.00** (rules only: gap 1.00); 26 calls, 0 errors, about $0.0009, about 1.3 s per call |
+| Adversarial suite | 51 structural cases incl. 6 new classifier-manipulation cases (adv-049..054): all pass, 0 critical breaches |
+
+**What changed:** a gated, label-only LLM fallback in `classify_intent` (ADR-015). Rules still run first; the LLM is asked only when the rules fall through AND the
+message looks personal; it can only return one of five labels; any failure means "normal question"; identity checks, the cooldown and the registered-recipient rule are
+untouched. `usage.intent_llm_called`, the trace fields and the `handled_by` label say when it ran. Switch: `INTENT_LLM_FALLBACK` (default on).
+
+**Found and fixed on the way:** trace redaction masked every key containing "token", so `input_tokens` and `output_tokens` have been blanked in all trace lines since
+Phase 0 (no token or cost tracking from traces). Now only numeric `*_input/output/prompt/completion/total_tokens` counts are exempt; `session_token`, `applicant_token`,
+`api_key` and similar stay redacted (tests pin both sides).
+
+**Needs you:** add `INTENT_LLM_FALLBACK=true` to `.env.example` (this repo's deny rules stop me from reading or editing that file).
+
+---
+
 ## Phase 7 (7.0, 7.3, 7.6) - Evidently spike, adversarial suite, parity audit (2026-11-24)
 
 | Command / check | Result |

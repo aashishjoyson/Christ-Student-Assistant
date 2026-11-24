@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     llm_temperature: float | None = None  # not sent when unset (reasoning models reject it)
     llm_reasoning_effort: str | None = None  # not sent when unset
     history_turns: int = 6  # prior chat turns given to the LLM (same for every mode)
+    # One small classification call when the deterministic intent rules are inconclusive AND the message looks personal
+    # (typos, Hinglish, non-native phrasing). Uses the primary LLM; the label only picks a route (ADR-015). Off = rules only.
+    intent_llm_fallback: bool = True
 
     # --- Model 3: remote OpenAI-compatible endpoint serving the LoRA adapter ---
     model3_base_url: str = ""

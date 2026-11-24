@@ -66,17 +66,30 @@ class ChatService:
             reason=eligibility.get("reason"),
         )
 
+    @staticmethod
+    def _truthful_handled_by(handled_by: dict[str, Any] | None, intent_llm_called: bool) -> dict[str, Any]:
+        """Template/database answers say "no LLM". If an LLM only read the request to choose the route, say so."""
+        info = dict(handled_by or {"kind": "helpdesk", "label": "Helpdesk"})
+        if intent_llm_called and info.get("kind") in ("applicant_service", "helpdesk"):
+            info["label"] = (
+                "Applicant service (answer from the database; an LLM only read the request)"
+                if info["kind"] == "applicant_service"
+                else "Helpdesk (template answer; an LLM only read the request)"
+            )
+        return info
+
     def _response(
         self, out: dict[str, Any], request: ChatRequest, conversation_id: UUID, message_id: str, latency_ms: int
     ) -> ChatResponse:
         llm = out.get("llm") or {}
+        intent_llm_called = bool((out.get("intent_llm") or {}).get("called"))
         return ChatResponse(
             conversation_id=conversation_id,
             message_id=message_id,
             answer=out.get("response", ""),
             intent=out.get("intent", Intent.ACADEMIC_QA.value),
             model_mode_requested=request.model_mode,
-            handled_by=HandledBy(**(out.get("handled_by") or {"kind": "helpdesk", "label": "Helpdesk"})),
+            handled_by=HandledBy(**self._truthful_handled_by(out.get("handled_by"), intent_llm_called)),
             grounded=out.get("grounded"),
             notice=out.get("notice"),
             citations=[CitationOut(**c) for c in out.get("citations", [])],
@@ -85,6 +98,7 @@ class ChatService:
             usage=Usage(
                 latency_ms=latency_ms,
                 llm_called=bool(llm.get("called")),
+                intent_llm_called=intent_llm_called,
                 input_tokens=llm.get("input_tokens"),
                 output_tokens=llm.get("output_tokens"),
                 est_cost_usd=llm.get("est_cost_usd"),
@@ -96,6 +110,7 @@ class ChatService:
     ) -> dict[str, Any]:
         """No raw applicant data and no message text unless TRACE_INCLUDE_TEXT=true (then redacted)."""
         llm = out.get("llm") or {}
+        intent_llm = out.get("intent_llm") or {}
         handled_by = out.get("handled_by") or {}
         trace: dict[str, Any] = {
             "ts": datetime.now(UTC).isoformat(),
@@ -115,6 +130,13 @@ class ChatService:
             "output_tokens": llm.get("output_tokens"),
             "est_cost_usd": llm.get("est_cost_usd"),
             "llm_latency_ms": llm.get("latency_ms"),
+            "intent_llm_called": bool(intent_llm.get("called")),
+            "intent_llm_label": intent_llm.get("label"),
+            "intent_llm_error": intent_llm.get("error"),
+            "intent_llm_input_tokens": intent_llm.get("input_tokens"),
+            "intent_llm_output_tokens": intent_llm.get("output_tokens"),
+            "intent_llm_est_cost_usd": intent_llm.get("est_cost_usd"),
+            "intent_llm_latency_ms": intent_llm.get("latency_ms"),
             "total_latency_ms": latency_ms,
             "retrieval": out.get("retrieval"),
             "retrieved_chunk_ids": [c["chunk_id"] for c in out.get("retrieved", [])],

@@ -41,6 +41,7 @@ class HelpdeskState(TypedDict, total=False):
     # ---- per-turn derived ----
     intent: str
     intent_rule: str
+    intent_llm: dict[str, Any] | None  # set only when the LLM fallback ran: tokens, latency, label, error
     verified: bool
     applicant_id: int | None
     retrieval: dict[str, Any]  # {"ready": bool, "returned": int, "kept": int}
@@ -63,6 +64,7 @@ class HelpdeskState(TypedDict, total=False):
 PER_TURN_DEFAULTS: dict[str, Any] = {
     "intent": "",
     "intent_rule": "",
+    "intent_llm": None,
     "verified": False,
     "applicant_id": None,
     "retrieval": {},

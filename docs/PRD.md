@@ -128,7 +128,7 @@ exist in `backend/tests/` are named.
 - Intents: `academic_qa`, `applicant_status`, `interview_details`, `resend_interview_email`, `general_help`, `unsupported`.
 - Deterministic classification; personal intents require a first-person cue or an application ID; default `academic_qa`.
 - Every response includes the visited node path (shown under "How this was handled").
-- AC-02.1 Routing table tests (`test_intents.py`, `test_routing.py`). AC-02.2 Applicant/email/help/unsupported paths make zero LLM calls (`test_model_paths.py`, `test_applicant_and_email.py`).
+- AC-02.1 Routing table tests (`test_intents.py`, `test_routing.py`). AC-02.2 Applicant/email/help/unsupported paths never use an LLM to write the answer (templates only; `test_model_paths.py`, `test_applicant_and_email.py`) and make no LLM call at all when the rules recognise the message. AC-02.3 When the rules are inconclusive and the message looks personal, at most one small intent-label call is made (ADR-015); a failure or unclear label is treated as a normal question; the label cannot bypass verification, the cooldown or the registered-recipient rule (`test_intent_fallback.py`, adversarial cases adv-049..054).
 
 ### FR-03 Model 1 - Direct LLM
 - System prompt forbids claiming document access and requires a disclaimer on institution-specific questions.

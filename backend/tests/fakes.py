@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.domain.documents import RetrievedChunk
+from app.domain.intent_fallback import INTENT_SYSTEM_PROMPT
 from app.llm.base import ChatResult, LLMError
 from app.services.email.base import OutgoingEmail, SendResult
 
@@ -22,6 +23,26 @@ class FakeChatClient:
             raise self.error
         return ChatResult(self.reply, self.provider, self.model, input_tokens=120, output_tokens=20, latency_ms=5,
                           finish_reason="stop")
+
+
+class ScriptedChatClient(FakeChatClient):
+    """Like FakeChatClient, but intent-classifier calls (recognised by their system prompt) get a scripted label.
+
+    classifier_reply=None -> "academic_qa"; "__error__" -> the classifier call raises (provider timeout).
+    """
+
+    def __init__(self, classifier_reply: str | None = None, **kw: object) -> None:
+        super().__init__(**kw)  # type: ignore[arg-type]
+        self.classifier_reply = classifier_reply
+
+    def complete(self, messages: list[dict[str, str]]) -> ChatResult:
+        if messages and messages[0].get("role") == "system" and messages[0]["content"] == INTENT_SYSTEM_PROMPT:
+            self.calls.append(messages)
+            if self.classifier_reply == "__error__":
+                raise LLMError("provider_timeout", "scripted classifier failure", retryable=True, http_status=504)
+            return ChatResult(self.classifier_reply or "academic_qa", self.provider, self.model, input_tokens=90,
+                              output_tokens=4, latency_ms=3, finish_reason="stop")
+        return super().complete(messages)
 
 
 class FakeRetriever:

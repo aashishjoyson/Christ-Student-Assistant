@@ -1,0 +1,30 @@
+{
+  "created": "2026-11-24",
+  "metric": "share of messages routed to the expected intent, per phrasing slice: deterministic rules + gated LLM fallback (ADR-015)",
+  "note": "A record of ONE live run (LLM output is not deterministic); CI does not call the LLM. Re-run the script to refresh.",
+  "model": "gpt-6-luna",
+  "llm_calls": 26,
+  "errors": 0,
+  "est_cost_usd": 0.000907,
+  "rules_only": {
+    "caps_punct": 1.0,
+    "emoji": 0.8333,
+    "formal": 0.8889,
+    "hinglish": 0.0,
+    "informal": 0.7778,
+    "non_native": 0.6667,
+    "typos": 0.0
+  },
+  "hybrid": {
+    "caps_punct": 1.0,
+    "emoji": 1.0,
+    "formal": 1.0,
+    "hinglish": 1.0,
+    "informal": 1.0,
+    "non_native": 1.0,
+    "typos": 1.0
+  },
+  "gap_rules_only": 1.0,
+  "gap_hybrid": 0.0,
+  "still_wrong": 0
+}

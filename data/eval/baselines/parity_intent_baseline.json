@@ -1,7 +1,7 @@
 {
   "created": "2026-11-24",
   "metric": "share of messages routed to the expected intent, per phrasing slice (deterministic rules in app/domain/intents.py)",
-  "note": "Accepted baseline. A slice may improve; it must not get worse. Target gap between slices is <= 0.10 (not yet met).",
+  "note": "Rules-only accepted baseline (CI-safe, no LLM). A slice may improve; it must not get worse. The rules alone leave typos and Hinglish at 0; the gated LLM fallback (ADR-015) closes the gap, see parity_intent_hybrid_live.json.",
   "slices": {
     "caps_punct": 1.0,
     "emoji": 0.8333,

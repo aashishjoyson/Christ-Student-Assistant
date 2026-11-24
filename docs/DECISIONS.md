@@ -13,6 +13,8 @@ Short records of the choices most likely to be questioned in a viva. Format: con
 - **Decision:** Regex rules with a first-person requirement for personal intents; default to `academic_qa`.
 - **Consequences:** Zero routing cost, explainable rules, unit-tested table. Misroutes fall to academic Q&A
   (safe: no private data, no action). An LLM fallback can be added later behind a flag.
+- **Update 2026-11-24:** the parity audit (Phase 7.6) showed the rules miss typos and Hinglish entirely; the LLM fallback
+  announced here was added as ADR-015. The rules still run first and still handle everything they recognise.
 
 ## ADR-003 Same hosted model for Models 1 and 2; same retrieval and prompt for Models 2 and 3
 - **Decision:** One `primary_llm` client instance serves both Model 1 and 2; Models 2 and 3 share
@@ -95,3 +97,20 @@ Short records of the choices most likely to be questioned in a viva. Format: con
   - Install validated by the 7.0 spike (2026-11-24): works with `pandas<3`; four unused compiled modules are blocked by Windows Application Control on the dev machine; fallback for any blocked feature is CI (Linux). Pass/fail is read from `snapshot.dict()["tests"]`; per-slice reports use `GroupBy`.
   - The API changed substantially in 0.7 (`Dataset`/`DataDefinition`, tests inside `Report`); old tutorials do not apply. Pin the version.
 - **Alternatives considered:** hand-rolled reports only (more code, no UI, no tests framework); MLflow only (already optional, weaker on LLM descriptors and pass/fail tests); Ragas/DeepEval-style libraries (not requested).
+
+## ADR-015 Gated LLM fallback for intent labelling (typos, Hinglish, non-native phrasing)
+- **Context:** The Phase 7.6 audit measured the deterministic rules at 0% for typo'd and Hinglish requests (best-vs-worst slice gap 1.00). Those
+  students were sent to general Q&A and could not reach interview, status or email help. It failed safe but was unfair.
+- **Decision:** In `classify_intent`, when the rules fell through to the default AND a loose gate sees a topic word (typos allowed) plus a
+  first-person or Hinglish cue, make ONE small call to the primary hosted LLM that returns a single label from a fixed list. Anything unclear,
+  empty, ambiguous or failing means `academic_qa`. Switch: `INTENT_LLM_FALLBACK` (default on). Pure helpers: `app/domain/intent_fallback.py`.
+- **Safety:** the label only picks a route. Private intents still pass `verify_identity` (signed token), the eligibility policy and the recipient read
+  from the database, so a wrong or manipulated label cannot leak data or redirect email (adversarial cases adv-049..054). The classifier sees only the
+  current message (quoted, delimiters neutralised, truncated to 500 chars): no history, no applicant data, no tools, no SQL.
+- **Measured (live, 2026-11-24, gpt-6-luna):** 60/60 phrasings routed correctly, gap 0.00 (was 1.00); 26 calls, 0 errors, about $0.0009 in total,
+  about 1.3 s per call. Ordinary questions never open the gate (0 of 32 in the test set); one gate-open control ("mail ID of the admissions office") stayed academic.
+- **Consequences:** Applicant and help answers are still templates, but those paths may now include one classification call, so PRD AC-02.2 says
+  "no LLM-written answers" (not "zero LLM calls"). `usage.intent_llm_called` and the trace record the call and its cost, and the `handled_by` label
+  says "an LLM only read the request" when it happened (labels must stay truthful). The call uses the primary model for every mode, so Models 1/2/3
+  see the same front end. Costs one extra round trip only on gated messages. The CI suite uses a scripted classifier; the live result is a recorded
+  baseline (`data/eval/baselines/parity_intent_hybrid_live.json`), refreshed by `scripts/eval_intent_fallback.py --save-baseline`.

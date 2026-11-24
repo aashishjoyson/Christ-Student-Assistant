@@ -15,6 +15,16 @@ _SECRET_VALUES = [
 ]
 
 
+# A token COUNT (input_tokens, output_tokens, ...) is a usage metric, not a credential. Only numeric values under these
+# exact key shapes are exempt; session_token, applicant_token, api_key and the like stay redacted whatever their value.
+_TOKEN_COUNT_KEY = re.compile(r"(^|_)(input|output|prompt|completion|total)_tokens$", re.IGNORECASE)
+
+
+def _is_token_count(key: str, value: Any) -> bool:
+    numeric = value is None or (isinstance(value, int | float) and not isinstance(value, bool))
+    return numeric and bool(_TOKEN_COUNT_KEY.search(key))
+
+
 def redact_text(text: str) -> str:
     for pattern in _SECRET_VALUES:
         text = pattern.sub("[REDACTED]", text)
@@ -26,7 +36,7 @@ def redact(obj: Any) -> Any:
     if isinstance(obj, dict):
         out: dict[str, Any] = {}
         for key, value in obj.items():
-            if isinstance(key, str) and _SECRET_KEY_NAMES.search(key):
+            if isinstance(key, str) and _SECRET_KEY_NAMES.search(key) and not _is_token_count(key, value):
                 out[key] = "[REDACTED]" if value else value
             else:
                 out[key] = redact(value)

@@ -44,7 +44,8 @@ class ActionResult(BaseModel):
 
 class Usage(BaseModel):
     latency_ms: int
-    llm_called: bool = False
+    llm_called: bool = False  # the ANSWER came from an LLM
+    intent_llm_called: bool = False  # an LLM only read the request to pick a route (never wrote an answer)
     input_tokens: int | None = None
     output_tokens: int | None = None
     est_cost_usd: float | None = None
