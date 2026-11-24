@@ -47,7 +47,15 @@ export interface ChatResponse {
   citations: Citation[];
   action: ActionResult | null;
   workflow_path: string[];
-  usage: { latency_ms: number; llm_called: boolean; input_tokens?: number | null; output_tokens?: number | null };
+  usage: {
+    latency_ms: number;
+    first_token_ms?: number | null;
+    llm_called: boolean;
+    intent_llm_called?: boolean;
+    condense_llm_called?: boolean;
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+  };
 }
 
 export interface ModelStatus {
@@ -74,3 +82,10 @@ export interface VerifyResponse {
   expires_at: string;
   applicant: { application_id: string; first_name: string; masked_email: string; programme: string };
 }
+
+// Events of POST /api/chat/stream (Server-Sent Events): start -> delta* -> final, or error.
+export type StreamEvent =
+  | { type: "start"; handled_by: HandledBy; notice?: string | null }
+  | { type: "delta"; text: string }
+  | { type: "final"; response: ChatResponse }
+  | { type: "error"; code: string; message: string };

@@ -37,11 +37,13 @@ class HelpdeskState(TypedDict, total=False):
     message: str
     model_mode: str  # ModelMode value
     applicant_token: str | None
+    stream: bool  # True only for POST /api/chat/stream: answer nodes then emit text deltas as they arrive
 
     # ---- per-turn derived ----
     intent: str
     intent_rule: str
     intent_llm: dict[str, Any] | None  # set only when the LLM fallback ran: tokens, latency, label, error
+    condense_llm: dict[str, Any] | None  # set only for follow-ups: how the retrieval query was rebuilt (never the text itself)
     verified: bool
     applicant_id: int | None
     retrieval: dict[str, Any]  # {"ready": bool, "returned": int, "kept": int}
@@ -62,9 +64,11 @@ class HelpdeskState(TypedDict, total=False):
 
 
 PER_TURN_DEFAULTS: dict[str, Any] = {
+    "stream": False,
     "intent": "",
     "intent_rule": "",
     "intent_llm": None,
+    "condense_llm": None,
     "verified": False,
     "applicant_id": None,
     "retrieval": {},
@@ -92,6 +96,7 @@ def new_turn_input(
     message: str,
     model_mode: str,
     applicant_token: str | None,
+    stream: bool = False,
 ) -> dict[str, Any]:
     """Input for one graph invocation: resets per-turn fields and appends the user turn."""
     return {
@@ -101,6 +106,7 @@ def new_turn_input(
         "message": message,
         "model_mode": model_mode,
         "applicant_token": applicant_token,
+        "stream": stream,
         "history": [{"role": "user", "content": message}],
     }
 

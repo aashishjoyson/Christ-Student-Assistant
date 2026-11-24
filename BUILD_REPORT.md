@@ -1,5 +1,26 @@
 # Build report
 
+## Streaming, formatted answers, follow-up context and the widget UI (2026-11-24)
+
+| Check | Result |
+|---|---|
+| `pytest` (full backend) | **300 passed** (28 new: streaming, follow-ups, rewrite helpers, stream client); `ruff` clean; secret scan passed |
+| `npm run build` / `npm test` | build passed; **13** dependency-free tests (markdown parser, SSE framing, HTML/`javascript:` safety) |
+| Real browser (headless Edge driving the live UI, DevTools protocol), question 1 | typing dots first, then the text grew in place (3 distinct lengths), caret shown, **same bubble element from dots to final answer**, page scrollY stayed 0, 2 bold + 1 citation chip rendered, 0 raw `**` |
+| Same, question 2 in the same chat ("And what about for the mid semester ones?") | answered correctly (75% per course, page 29); before the fix it said "could not find" |
+| First word | 1.2-1.8 s on simple questions; **6.4 s on a long MBA answer** (hidden reasoning time; streaming cannot remove it) |
+
+**Findings**
+1. *Fixed:* retrieval ignored the conversation, so follow-up questions lost their context while the LLM kept it (ADR-016). Verified live and in the browser.
+2. *Fixed:* answers showed raw markdown (`**bold**`, `- ` lists). A safe in-repo renderer now builds React elements (ADR-017).
+3. *Changed, cause not proven:* the "chat slides up and everything goes white" glitch. In the browser the page behind the widget never moved (the widget is `position: fixed`), so my first theory (page scroll) was not the cause. Likely causes were the smooth-scroll animation inside the message list plus a blank wait for the whole answer. Both are gone: instant container-only scrolling that follows the text, and streaming from the first word with one stable bubble. If you still see it, send me what the screen does.
+4. *Fixed:* a trace field named `first_token_ms` was blanked by the redaction rule for keys containing "token"; the field is now `ttft_ms`.
+5. *Open:* chat history lives in the backend's memory (ADR-006), so it resets when the server restarts (it did, several times, while I was working). The screen keeps your messages across a page refresh, but not across a server restart. A persistent history is a small opt-in feature if you want it.
+6. *Done:* your four generated images are wired in as optimised JPEGs (10 MB of PNG became about 660 KB; originals backed up in the git-ignored `data/private/home-originals/`).
+7. *Recommendation:* set `LLM_REASONING_EFFORT=low` in `.env` to cut the first-word time of longer answers.
+
+---
+
 ## Phase 2 - RAG over a local folder, live on the real documents (2026-11-24)
 
 | Command / check | Result |

@@ -114,3 +114,23 @@ Short records of the choices most likely to be questioned in a viva. Format: con
   says "an LLM only read the request" when it happened (labels must stay truthful). The call uses the primary model for every mode, so Models 1/2/3
   see the same front end. Costs one extra round trip only on gated messages. The CI suite uses a scripted classifier; the live result is a recorded
   baseline (`data/eval/baselines/parity_intent_hybrid_live.json`), refreshed by `scripts/eval_intent_fallback.py --save-baseline`.
+
+## ADR-016 Follow-up questions are searched with their conversation context
+- **Context:** The chat history reached the answering LLM, but retrieval embedded only the latest message. Live, "And what about the mid semester ones?" retrieved
+  calendar pages and Model 2 answered "could not find"; a third follow-up got a canned refusal.
+- **Decision:** In `retrieve_context`, when the conversation has an earlier user turn AND the new message looks like a follow-up (<= 15 words, or it leans on earlier text:
+  "that", "same", "what about"...), the primary LLM restates it as ONE standalone question (`app/domain/contextualize.py`). That text is used for retrieval ONLY: the
+  answering model still gets the original message plus the history. Any failure falls back to "previous question + this message".
+- **Safety and fairness:** the rewrite prompt is quoted data with delimiters neutralised, sees at most the last 6 turns (clipped), and applicant-service answers are only
+  the history placeholder, so applicant details never reach it. Models 2 and 3 share the step (same primary client), so they keep identical retrieval (ADR-003).
+- **Consequences:** one extra small call (about $0.0001, about 1 s) on follow-ups only; `usage.condense_llm_called`, trace fields and tests record it; the trace stores
+  only whether the query was rewritten (`llm` or `fallback`), never its text.
+
+## ADR-017 Streaming answers over Server-Sent Events, rendered as safe markdown
+- **Decision:** Add `POST /api/chat/stream` (SSE: start, delta, final, error). `OpenAICompatibleChatClient.stream()` yields text deltas then one `ChatResult`; the answer nodes
+  emit them through LangGraph's custom stream writer only when the turn was started with `stream=true`, so `POST /api/chat` is unchanged. The UI renders answers with an
+  in-repo markdown parser that builds React elements (no `dangerouslySetInnerHTML`, only http/https/mailto links, unclosed markers stay literal).
+- **Why:** reasoning models make the user wait seconds for the first word; streaming shows progress at once, and models write markdown that was displayed as raw `**` and dashes.
+- **Consequences:** a failure before the first word is a normal HTTP error (the 503 for an unconfigured Model 3 is preserved); a failure after text starts ends with an
+  `error` event. The first word still waits for hidden reasoning: lower `LLM_REASONING_EFFORT` to shorten it. Frontend logic is covered by dependency-free `node --test`
+  tests (`npm test`) until Vitest arrives in Phase 4. Streaming needs `stream_options.include_usage` support from the provider (OpenAI, OpenRouter and vLLM have it).

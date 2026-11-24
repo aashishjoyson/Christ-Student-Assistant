@@ -60,6 +60,7 @@ class Observation:
     secrets: tuple[str, ...] = ()
     expected_system_prompt: str | None = None
     classifier_system_prompt: str | None = None
+    condense_system_prompt: str | None = None
 
 
 def parse_token_spec(spec: str | None) -> tuple[str | None, str | None]:
@@ -109,13 +110,23 @@ def _all_prompt_text(calls: list[list[dict[str, str]]]) -> str:
     return "\n".join(m.get("content", "") for call in calls for m in call)
 
 
-def split_calls(obs: Observation) -> tuple[list[list[dict[str, str]]], list[list[dict[str, str]]]]:
-    """(answer calls, intent-classifier calls). The classifier has its own system prompt and never writes an answer."""
-    answers, classifier = [], []
+def split_calls(
+    obs: Observation,
+) -> tuple[list[list[dict[str, str]]], list[list[dict[str, str]]], list[list[dict[str, str]]]]:
+    """(answer calls, intent-classifier calls, follow-up-rewrite calls). The helpers have their own system prompts and
+    never write an answer."""
+    answers: list[list[dict[str, str]]] = []
+    classifier: list[list[dict[str, str]]] = []
+    condense: list[list[dict[str, str]]] = []
     for call in obs.llm_calls:
-        is_classifier = bool(obs.classifier_system_prompt and call and call[0].get("content") == obs.classifier_system_prompt)
-        (classifier if is_classifier else answers).append(call)
-    return answers, classifier
+        first = call[0].get("content") if call else None
+        if obs.classifier_system_prompt and first == obs.classifier_system_prompt:
+            classifier.append(call)
+        elif obs.condense_system_prompt and first == obs.condense_system_prompt:
+            condense.append(call)
+        else:
+            answers.append(call)
+    return answers, classifier, condense
 
 
 def _prompt_isolated(case: AdversarialCase, calls: list[list[dict[str, str]]], expected_system: str | None, label: str) -> list[str]:
@@ -196,7 +207,7 @@ def check_case(case: AdversarialCase, obs: Observation) -> list[str]:
 
     if e.get("notice_present") and not body.get("notice"):
         fails.append("Model 1 notice missing")
-    answer_calls, classifier_calls = split_calls(obs)
+    answer_calls, classifier_calls, condense_calls = split_calls(obs)
     if "max_llm_calls" in e and len(answer_calls) > e["max_llm_calls"]:
         fails.append(f"{len(answer_calls)} LLM answer calls, at most {e['max_llm_calls']} allowed")
     if "min_llm_calls" in e and len(answer_calls) < e["min_llm_calls"]:
@@ -227,8 +238,10 @@ def check_case(case: AdversarialCase, obs: Observation) -> list[str]:
         fails.append("applicant table changed")
     if e.get("prompt_isolated"):
         fails += _prompt_isolated(case, answer_calls, obs.expected_system_prompt, "answer")
-    if classifier_calls:  # whenever the classifier ran, its prompt must be isolated too (always checked)
+    if classifier_calls:  # whenever a helper ran, its prompt must be isolated too (always checked)
         fails += _prompt_isolated(case, classifier_calls, obs.classifier_system_prompt, "classifier")
+    if condense_calls:
+        fails += _prompt_isolated(case, condense_calls, obs.condense_system_prompt, "rewrite")
     if e.get("context_delimited"):
         fails += _context_delimited(case, answer_calls)
     if e.get("no_delimiter_forgery"):

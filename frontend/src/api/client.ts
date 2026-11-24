@@ -1,4 +1,5 @@
-import type { ChatResponse, Health, ModelMode, VerifyResponse } from "./types";
+import { parseFrame, splitFrames } from "../lib/sse";
+import type { ChatResponse, Health, ModelMode, StreamEvent, VerifyResponse } from "./types";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
@@ -43,7 +44,48 @@ export function sendChat(args: {
   });
 }
 
-export const verifyApplicant = (applicationId: string, registeredEmail: string) =>
+/**
+ * Streamed chat turn (Server-Sent Events over fetch, because EventSource cannot POST).
+ * Resolves when the stream ends; `onEvent` receives start / delta / final / error events in order.
+ * A failure BEFORE any text (model not configured, rate limit) is thrown as an ApiError, exactly like sendChat.
+ */
+export async function streamChat(
+  args: { message: string; modelMode: ModelMode; conversationId: string | null; applicantToken: string | null },
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch("/api/chat/stream", {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json", ...(args.applicantToken ? { "X-Applicant-Session": args.applicantToken } : {}) },
+    body: JSON.stringify({
+      message: args.message,
+      model_mode: args.modelMode,
+      conversation_id: args.conversationId,
+      client_message_id: crypto.randomUUID(),
+    }),
+  });
+  if (!res.ok || !res.body) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body?.error?.code ?? `http_${res.status}`, body?.error?.message ?? "Request failed.");
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const { frames, rest } = splitFrames(buffer);
+    buffer = rest;
+    for (const frame of frames) {
+      const parsed = parseFrame(frame);
+      if (parsed) onEvent({ type: parsed.event, ...(parsed.data as object) } as StreamEvent);
+    }
+  }
+}
+
+export const verifyApplicant =(applicationId: string, registeredEmail: string) =>
   request<VerifyResponse>("/api/demo/applicant/verify", {
     method: "POST",
     body: JSON.stringify({ application_id: applicationId, registered_email: registeredEmail }),

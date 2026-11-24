@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -13,6 +15,8 @@ from app.domain.masking import hash_identifier
 from app.graph.state import new_turn_input
 from app.schemas.chat import ActionResult, ChatRequest, ChatResponse, CitationOut, HandledBy, Usage
 from app.services.tracing import TraceRecorder
+
+log = logging.getLogger("chat")
 
 
 class ChatError(Exception):
@@ -49,6 +53,44 @@ class ChatService:
         if error:
             raise ChatError(str(error["code"]), str(error["message"]), int(error.get("http_status", 502)))
         return self._response(out, request, conversation_id, message_id, latency_ms)
+
+    def stream(self, request: ChatRequest, applicant_token: str | None) -> Iterator[dict[str, Any]]:
+        """Same turn as handle(), but yields events as they happen: {"type": "start" | "delta" | "error" | "final", ...}.
+
+        start/delta come from the answer nodes (LLM answers only; template answers produce just "final"). "final" carries the
+        complete ChatResponse (citations, usage, workflow path), so the client can replace the streamed text with the canonical
+        one. An "error" event ends the stream. The trace is written once, exactly like handle()."""
+        conversation_id: UUID = request.conversation_id or uuid.uuid4()
+        message_id = request.client_message_id or uuid.uuid4().hex
+        started = time.perf_counter()
+        state: dict[str, Any] = {}
+        try:
+            for mode, payload in self._graph.stream(
+                new_turn_input(
+                    conversation_id=str(conversation_id), request_id=message_id, message=request.message,
+                    model_mode=request.model_mode, applicant_token=applicant_token, stream=True,
+                ),
+                config={"configurable": {"thread_id": str(conversation_id)}},
+                stream_mode=["custom", "values"],
+            ):
+                if mode == "custom":
+                    yield dict(payload)
+                else:
+                    state = payload
+        except Exception as exc:  # an unexpected failure must end the stream cleanly, not hang the client
+            log.exception("streaming turn failed")
+            yield {"type": "error", "code": "internal_error", "message": "The assistant hit an unexpected error.",
+                   "http_status": 500, "detail": type(exc).__name__}
+            return
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        self._tracer.record(self._trace(state, request, conversation_id, message_id, latency_ms))
+        error = state.get("error")
+        if error:
+            yield {"type": "error", "code": str(error["code"]), "message": str(error["message"]),
+                   "http_status": int(error.get("http_status", 502))}
+            return
+        yield {"type": "final", "response": self._response(state, request, conversation_id, message_id, latency_ms)
+               .model_dump(mode="json")}
 
     # ---------- mapping ----------
     def _action(self, out: dict[str, Any]) -> ActionResult | None:
@@ -97,8 +139,10 @@ class ChatService:
             workflow_path=out.get("node_path", []),
             usage=Usage(
                 latency_ms=latency_ms,
+                first_token_ms=llm.get("first_token_ms"),
                 llm_called=bool(llm.get("called")),
                 intent_llm_called=intent_llm_called,
+                condense_llm_called=bool((out.get("condense_llm") or {}).get("called")),
                 input_tokens=llm.get("input_tokens"),
                 output_tokens=llm.get("output_tokens"),
                 est_cost_usd=llm.get("est_cost_usd"),
@@ -111,6 +155,7 @@ class ChatService:
         """No raw applicant data and no message text unless TRACE_INCLUDE_TEXT=true (then redacted)."""
         llm = out.get("llm") or {}
         intent_llm = out.get("intent_llm") or {}
+        condense_llm = out.get("condense_llm") or {}
         handled_by = out.get("handled_by") or {}
         trace: dict[str, Any] = {
             "ts": datetime.now(UTC).isoformat(),
@@ -130,6 +175,8 @@ class ChatService:
             "output_tokens": llm.get("output_tokens"),
             "est_cost_usd": llm.get("est_cost_usd"),
             "llm_latency_ms": llm.get("latency_ms"),
+            "ttft_ms": llm.get("first_token_ms"),  # NOT named *token*: the redaction layer blanks any key containing "token"
+            "streamed": bool(out.get("stream")),
             "intent_llm_called": bool(intent_llm.get("called")),
             "intent_llm_label": intent_llm.get("label"),
             "intent_llm_error": intent_llm.get("error"),
@@ -137,6 +184,12 @@ class ChatService:
             "intent_llm_output_tokens": intent_llm.get("output_tokens"),
             "intent_llm_est_cost_usd": intent_llm.get("est_cost_usd"),
             "intent_llm_latency_ms": intent_llm.get("latency_ms"),
+            "retrieval_query_rewritten": (condense_llm.get("used") if condense_llm else None),  # "llm" | "fallback" | None
+            "condense_llm_called": bool(condense_llm.get("called")),
+            "condense_llm_error": condense_llm.get("error"),
+            "condense_llm_input_tokens": condense_llm.get("input_tokens"),
+            "condense_llm_output_tokens": condense_llm.get("output_tokens"),
+            "condense_llm_est_cost_usd": condense_llm.get("est_cost_usd"),
             "total_latency_ms": latency_ms,
             "retrieval": out.get("retrieval"),
             "retrieved_chunk_ids": [c["chunk_id"] for c in out.get("retrieved", [])],

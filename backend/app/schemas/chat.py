@@ -44,8 +44,10 @@ class ActionResult(BaseModel):
 
 class Usage(BaseModel):
     latency_ms: int
+    first_token_ms: int | None = None  # streaming only: time until the first visible token
     llm_called: bool = False  # the ANSWER came from an LLM
     intent_llm_called: bool = False  # an LLM only read the request to pick a route (never wrote an answer)
+    condense_llm_called: bool = False  # an LLM restated a follow-up as a standalone search query (never wrote an answer)
     input_tokens: int | None = None
     output_tokens: int | None = None
     est_cost_usd: float | None = None

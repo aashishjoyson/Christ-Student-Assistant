@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.domain.contextualize import CONDENSE_SYSTEM_PROMPT
 from app.domain.documents import RetrievedChunk
 from app.domain.intent_fallback import INTENT_SYSTEM_PROMPT
 from app.llm.base import ChatResult, LLMError
@@ -10,11 +11,12 @@ from app.services.email.base import OutgoingEmail, SendResult
 
 class FakeChatClient:
     def __init__(self, provider: str = "fake", model: str = "fake-model", reply: str = "Classes begin on 1 July [1].",
-                 error: LLMError | None = None) -> None:
+                 error: LLMError | None = None, stream_error_after: int | None = None) -> None:
         self.provider = provider
         self.model = model
         self.reply = reply
         self.error = error
+        self.stream_error_after = stream_error_after  # stream(): raise after this many deltas (a failure MID-answer)
         self.calls: list[list[dict[str, str]]] = []
 
     def complete(self, messages: list[dict[str, str]]) -> ChatResult:
@@ -25,17 +27,38 @@ class FakeChatClient:
                           finish_reason="stop")
 
 
+    def stream(self, messages: list[dict[str, str]]):  # type: ignore[no-untyped-def]
+        """Yield the reply word by word, then one final ChatResult (same contract as OpenAICompatibleChatClient.stream)."""
+        self.calls.append(messages)
+        if self.error:
+            raise self.error
+        for i, word in enumerate(self.reply.split(" ")):
+            if self.stream_error_after is not None and i >= self.stream_error_after:
+                raise LLMError("provider_unreachable", "scripted mid-stream failure", retryable=True)
+            yield word if i == 0 else " " + word
+        yield ChatResult(self.reply, self.provider, self.model, input_tokens=120, output_tokens=20, latency_ms=5,
+                         finish_reason="stop", first_token_ms=2)
+
+
 class ScriptedChatClient(FakeChatClient):
     """Like FakeChatClient, but intent-classifier calls (recognised by their system prompt) get a scripted label.
 
     classifier_reply=None -> "academic_qa"; "__error__" -> the classifier call raises (provider timeout).
     """
 
-    def __init__(self, classifier_reply: str | None = None, **kw: object) -> None:
+    def __init__(self, classifier_reply: str | None = None, condense_reply: str | None = None, **kw: object) -> None:
         super().__init__(**kw)  # type: ignore[arg-type]
         self.classifier_reply = classifier_reply
+        self.condense_reply = condense_reply  # None -> echo the latest message; "__error__" -> the call fails
 
     def complete(self, messages: list[dict[str, str]]) -> ChatResult:
+        if messages and messages[0].get("role") == "system" and messages[0]["content"] == CONDENSE_SYSTEM_PROMPT:
+            self.calls.append(messages)
+            if self.condense_reply == "__error__":
+                raise LLMError("provider_timeout", "scripted rewriter failure", retryable=True, http_status=504)
+            latest = messages[-1]["content"].split("Latest message:\n<<<\n", 1)[-1].split("\n>>>", 1)[0]
+            return ChatResult(self.condense_reply or latest, self.provider, self.model, input_tokens=200,
+                              output_tokens=15, latency_ms=3, finish_reason="stop")
         if messages and messages[0].get("role") == "system" and messages[0]["content"] == INTENT_SYSTEM_PROMPT:
             self.calls.append(messages)
             if self.classifier_reply == "__error__":

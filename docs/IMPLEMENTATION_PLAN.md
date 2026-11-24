@@ -125,6 +125,8 @@ Acceptance: upload a new file to the folder -> appears in status after sync -> a
 
 ## Phase 4 - Frontend completion
 
+**Done early (2026-11-24):** homepage-widget redesign with the Christ University crest, streamed answers, safe markdown rendering, citation chips, follow-up-aware retrieval, "New chat", conversation restored after a refresh, `npm test` for the parsers. **Still open:** admin page, debug drawer, Vitest + Testing Library, accessibility pass and a mobile check. The homepage photos are AI-generated illustrations (see LICENSE_NOTES.md); swap in licensed or official photos for any public use.
+
 - Admin page (`/admin` route or tab): enter admin key (kept in memory only), show counts, last run, per-file table, "Sync now" buttons (local/Drive).
 - Debug drawer for retrieved chunks (Model 2/3) behind a toggle - not shown by default.
 - Model 3 states: not configured / configured / endpoint error. Disable send when the selected model is not configured.

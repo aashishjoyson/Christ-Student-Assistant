@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 
 from app.core.config import REPO_ROOT
 from app.db.models import Applicant
+from app.domain.contextualize import CONDENSE_SYSTEM_PROMPT
 from app.domain.documents import RetrievedChunk
 from app.domain.intent_fallback import INTENT_SYSTEM_PROMPT
 from app.domain.prompts import DIRECT_SYSTEM_PROMPT, RAG_SYSTEM_PROMPT
@@ -95,6 +96,7 @@ def _run(env: Env, case: AdversarialCase) -> Observation:
         secrets=SECRETS,
         expected_system_prompt=DIRECT_SYSTEM_PROMPT if case.mode == "direct" else RAG_SYSTEM_PROMPT,
         classifier_system_prompt=INTENT_SYSTEM_PROMPT,
+        condense_system_prompt=CONDENSE_SYSTEM_PROMPT,
     )
 
 

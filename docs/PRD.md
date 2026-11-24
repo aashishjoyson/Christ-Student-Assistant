@@ -121,14 +121,14 @@ exist in `backend/tests/` are named.
 - Model 2/3 answers list citations (file name + page/section; link when the source URL is known). If the model cited nothing, label the list "Retrieved (not explicitly cited)".
 - Model 3 shows "Not configured" in the selector when `/api/health` reports it unconfigured; a request returns a clear message, never a substitute answer.
 - Conversation ID persists for the browser tab; applicant session shown with masked email.
-- AC-01.1 Labels match exactly. AC-01.2 Model 3 unconfigured -> inline explanation, no answer text from another model.
+- AC-01.1 Labels match exactly. AC-01.2 Model 3 unconfigured -> inline explanation, no answer text from another model. AC-01.3 Answers stream word by word (`POST /api/chat/stream`), are rendered as safe markdown (bold, lists, tables, links, citation chips; never raw HTML), and the bubble does not re-mount or move the page (`test_streaming.py`, `frontend/tests/markdown.test.mjs`). AC-01.4 The visible conversation survives a page refresh and "New chat" clears both the screen and the server-side context.
 
 ### FR-02 Orchestration (LangGraph)
 - Typed shared state; compiled `StateGraph` with conditional edges; in-memory checkpointer keyed by conversation ID.
 - Intents: `academic_qa`, `applicant_status`, `interview_details`, `resend_interview_email`, `general_help`, `unsupported`.
 - Deterministic classification; personal intents require a first-person cue or an application ID; default `academic_qa`.
 - Every response includes the visited node path (shown under "How this was handled").
-- AC-02.1 Routing table tests (`test_intents.py`, `test_routing.py`). AC-02.2 Applicant/email/help/unsupported paths never use an LLM to write the answer (templates only; `test_model_paths.py`, `test_applicant_and_email.py`) and make no LLM call at all when the rules recognise the message. AC-02.3 When the rules are inconclusive and the message looks personal, at most one small intent-label call is made (ADR-015); a failure or unclear label is treated as a normal question; the label cannot bypass verification, the cooldown or the registered-recipient rule (`test_intent_fallback.py`, adversarial cases adv-049..054).
+- AC-02.1 Routing table tests (`test_intents.py`, `test_routing.py`). AC-02.2 Applicant/email/help/unsupported paths never use an LLM to write the answer (templates only; `test_model_paths.py`, `test_applicant_and_email.py`) and make no LLM call at all when the rules recognise the message. AC-02.4 A follow-up question ("and for the mid semester ones?") is searched with its conversation context: it is restated as a standalone query for retrieval only, shared by Models 2 and 3, with a deterministic fallback if the rewrite fails (ADR-016; `test_followups.py`). AC-02.3 When the rules are inconclusive and the message looks personal, at most one small intent-label call is made (ADR-015); a failure or unclear label is treated as a normal question; the label cannot bypass verification, the cooldown or the registered-recipient rule (`test_intent_fallback.py`, adversarial cases adv-049..054).
 
 ### FR-03 Model 1 - Direct LLM
 - System prompt forbids claiming document access and requires a disclaimer on institution-specific questions.

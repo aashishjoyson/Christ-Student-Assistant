@@ -10,7 +10,16 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
+from langgraph.config import get_stream_writer
+
 from app.domain.citations import build_citations
+from app.domain.contextualize import (
+    CONDENSE_PROMPT_VERSION,
+    build_condense_messages,
+    fallback_query,
+    needs_condense,
+    parse_standalone,
+)
 from app.domain.documents import RetrievedChunk
 from app.domain.model_modes import MODE_LABELS, PROMPT_VERSIONS, ModelMode
 from app.domain.pricing import estimate_cost_usd
@@ -62,9 +71,33 @@ class AcademicNodes:
                 output_tokens=result.output_tokens,
                 latency_ms=result.latency_ms,
                 finish_reason=result.finish_reason,
+                first_token_ms=result.first_token_ms,
                 est_cost_usd=estimate_cost_usd(result.model, result.input_tokens, result.output_tokens),
             )
         return meta
+
+    def _generate(
+        self, state: HelpdeskState, client: ChatClient, messages: list[dict[str, str]], announce: dict[str, Any]
+    ) -> ChatResult:
+        """One-shot by default. When this turn was started with streaming (POST /api/chat/stream) and the client can stream,
+        text deltas go out through LangGraph's custom writer as they arrive; the 'start' event (which model answers, plus the
+        Model 1 notice) is sent just before the FIRST delta, so an error before any text can still become a proper HTTP error."""
+        if not (state.get("stream") and hasattr(client, "stream")):
+            return client.complete(messages)
+        write = get_stream_writer()
+        result: ChatResult | None = None
+        announced = False
+        for item in client.stream(messages):  # type: ignore[attr-defined]
+            if isinstance(item, str):
+                if not announced:
+                    write({"type": "start", **announce})
+                    announced = True
+                write({"type": "delta", "text": item})
+            else:
+                result = item
+        if result is None:  # a streaming client must end with a ChatResult
+            raise LLMError("empty_completion", f"{client.provider}: the stream ended without a result.")
+        return result
 
     # ---------- nodes ----------
     def check_model_available(self, state: HelpdeskState) -> dict[str, Any]:
@@ -97,7 +130,10 @@ class AcademicNodes:
         assert client is not None  # guaranteed by check_model_available
         path = step(state, "direct_answer")
         try:
-            result = client.complete(build_direct_messages(state["message"], self._prior_turns(state)))
+            result = self._generate(
+                state, client, build_direct_messages(state["message"], self._prior_turns(state)),
+                {"handled_by": self._handled_by(ModelMode.DIRECT, client), "notice": MODEL1_NOTICE},
+            )
         except LLMError as exc:
             return {"node_path": path, "error": exc.as_error()}
         return {
@@ -118,16 +154,44 @@ class AcademicNodes:
         retriever = self.deps.retriever
         if not retriever.ready:
             return {"retrieval": {"ready": False, "returned": 0, "kept": 0}, "retrieved": [], "node_path": path}
+        query, condense_meta = self._retrieval_query(state)
         try:
-            chunks = retriever.retrieve(state["message"], s.rag_top_k)
+            chunks = retriever.retrieve(query, s.rag_top_k)
         except Exception as exc:  # embedding/vector-store failure must not crash the graph
-            return {"node_path": path, "error": _error("retrieval_failed", f"Retrieval failed: {exc}", 502)}
+            return {"node_path": path, "error": _error("retrieval_failed", f"Retrieval failed: {exc}", 502),
+                    "condense_llm": condense_meta}
         kept = [c for c in chunks if c.distance is None or c.distance <= s.rag_max_distance]
         return {
-            "retrieval": {"ready": True, "returned": len(chunks), "kept": len(kept)},
+            "retrieval": {"ready": True, "returned": len(chunks), "kept": len(kept),
+                          "query_rewritten": condense_meta is not None},
             "retrieved": [asdict(c) for c in kept],
+            "condense_llm": condense_meta,
             "node_path": path,
         }
+
+    def _retrieval_query(self, state: HelpdeskState) -> tuple[str, dict[str, Any] | None]:
+        """The text to search with. A follow-up ("and for the mid semester ones?") is restated as a standalone question using
+        the conversation; the same step serves Models 2 and 3 so both retrieve identically. Used for retrieval ONLY."""
+        message, history = state["message"], state.get("history", [])
+        if not needs_condense(message, history):
+            return message, None
+        meta: dict[str, Any] = {"called": False, "prompt_version": CONDENSE_PROMPT_VERSION, "used": "fallback", "error": None}
+        client = self.deps.primary_llm
+        if client is not None:
+            meta["called"] = True
+            try:
+                result = client.complete(build_condense_messages(message, history))
+            except Exception as exc:  # never break retrieval because the rewriter failed
+                meta["error"] = getattr(exc, "code", type(exc).__name__)
+            else:
+                meta.update(provider=result.provider, model=result.model, input_tokens=result.input_tokens,
+                            output_tokens=result.output_tokens, latency_ms=result.latency_ms,
+                            est_cost_usd=estimate_cost_usd(result.model, result.input_tokens, result.output_tokens))
+                standalone = parse_standalone(result.text)
+                if standalone:
+                    meta["used"] = "llm"
+                    return standalone, meta
+        return fallback_query(message, history), meta
 
     def rag_answer(self, state: HelpdeskState) -> dict[str, Any]:
         """Model 2: same hosted LLM as Model 1, plus retrieved evidence."""
@@ -161,7 +225,10 @@ class AcademicNodes:
             }
 
         try:
-            result = client.complete(build_rag_messages(state["message"], chunks, self._prior_turns(state)))
+            result = self._generate(
+                state, client, build_rag_messages(state["message"], chunks, self._prior_turns(state)),
+                {"handled_by": handled_by},
+            )
         except LLMError as exc:
             return {"node_path": path, "error": exc.as_error()}
         citations = [asdict(c) for c in build_citations(result.text, chunks)]

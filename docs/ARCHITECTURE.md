@@ -350,6 +350,20 @@ For academic answers `handled_by` is `{"kind":"llm","mode":"rag","label":"Model 
 Errors: `{"error": {"code": "model3_not_configured", "message": "..."}}` with 503; `llm_not_configured` 503;
 `provider_rate_limited` 429; `provider_timeout` 504; `provider_*`/`retrieval_failed` 502; validation 422.
 
+### `POST /api/chat/stream` (Server-Sent Events)
+Same request, header and turn as `POST /api/chat`, delivered as an event stream (`Content-Type: text/event-stream`):
+
+```text
+event: start   data: {"handled_by": {...}, "notice": "..."}        (just before the first word; Model 1 includes its notice)
+event: delta   data: {"text": "You need "}                          (repeated; the answer as it is generated)
+event: final   data: {"response": { ...the full ChatResponse of POST /api/chat... }}
+event: error   data: {"code": "provider_unreachable", "message": "..."}   (instead of final, only AFTER text has started)
+```
+Template answers (applicant, help, unsupported, "no documents indexed") produce only `final`. `final` is the canonical result (citations, usage incl.
+`first_token_ms`, workflow path), so the client replaces the streamed text with it. A failure BEFORE any text (model not configured, auth, rate limit)
+is an ordinary HTTP error with the same JSON body as `/api/chat`. The trace is written once, as for `/api/chat`, with `streamed` and `ttft_ms`.
+`usage` also reports `intent_llm_called` and `condense_llm_called` (helper LLM calls that never write an answer).
+
 ### `POST /api/demo/applicant/verify`
 `{"application_id": "CUAPP-DEMO-0001", "registered_email": "aarav.demo@example.com"}` ->
 `{"verified": true, "session_token": "...", "expires_at": "...", "applicant": {"application_id": "...", "first_name": "Aarav", "masked_email": "a********o@example.com", "programme": "..."}}`;
