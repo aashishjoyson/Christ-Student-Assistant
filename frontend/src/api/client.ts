@@ -1,5 +1,5 @@
 import { parseFrame, splitFrames } from "../lib/sse";
-import type { ChatResponse, Health, ModelMode, StreamEvent, VerifyResponse } from "./types";
+import type { ChatResponse, FeedbackRating, FeedbackReason, Health, ModelMode, StreamEvent, VerifyResponse } from "./types";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
@@ -90,3 +90,11 @@ export const verifyApplicant =(applicationId: string, registeredEmail: string) =
     method: "POST",
     body: JSON.stringify({ application_id: applicationId, registered_email: registeredEmail }),
   });
+
+/** A thumbs up/down on one answer. The server stores the rating and a fixed reason code against the answer id; never any text. */
+export const sendFeedback = (args: { messageId: string; rating: FeedbackRating; reason?: FeedbackReason; modelMode?: ModelMode | null }) =>
+  request<{ status: "recorded" | "updated" }>("/api/feedback", {
+    method: "POST",
+    body: JSON.stringify({ message_id: args.messageId, rating: args.rating, reason: args.reason ?? null, model_mode: args.modelMode ?? null }),
+  });
+

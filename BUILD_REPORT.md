@@ -1,5 +1,27 @@
 # Build report
 
+## M4 - Monitoring and the feedback loop (2026-11-24)
+
+| Check | Result |
+|---|---|
+| Tests | **489 passed** (27 new: feedback API 7, monitoring logic 13, monitoring through the real app and the command 7); ruff clean; secret scan passed; frontend build and 13 tests pass |
+| Real browser (headless Edge, live UI + API) | answer shown with thumbs; thumbs-down opens five reasons; choosing one shows "Thanks"; the database row is `down / wrong_answer / rag`; no error bubbles |
+| Monitor on the real trace log (48 h, 75 requests from today's work) | status WARNING for a true reason: 4 document questions were asked before anything was indexed; 1 provider timeout; cost $0.0001 per request |
+| Drift check on a synthetic shifted log (the real log has no history yet) | `distance_drift` (0.273 -> 0.463), `cost_drift` (x4.0), `latency_drift` (x2.6) all fire; the Evidently drift report builds |
+
+**What was built:** a `feedback` table and `POST /api/feedback` (fixed reason codes, one rating per answer, rate limited, no text); `retrieval.best_distance` in every trace; `app/eval/monitoring.py`; `GET /api/admin/monitoring/summary`;
+`scripts/monitor_traces.py` (`--json`, `--evidently`); thumbs in the chat widget.
+
+**Findings**
+1. The model provider was slow while I tested M4: every answer took about 7 s (in the API and in-process alike), against a baseline p95 of 4.9 s and p50 of 1.8 s earlier. It is the provider or the network, not the code
+   (the same questions through the evaluation harness were equally slow at the same time); the latency alerts exist for exactly this.
+2. The trace did not record retrieval distances, so drift in the vector search was invisible; it is recorded now (a number, never text).
+3. Rate alerts are deliberately silent below 20 requests; the live log has 75 requests but no reference week yet, so drift will only be meaningful after a few days of use.
+
+**Not built:** persistent chat history across restarts (needs a decision: a small history table is possible without new packages), a dashboard page (M6), per-user feedback comments.
+
+---
+
 ## M3 - CI and promotion gates (2026-11-24)
 
 | Check | Result |

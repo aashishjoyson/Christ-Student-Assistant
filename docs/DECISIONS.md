@@ -183,3 +183,15 @@ Short records of the choices most likely to be questioned in a viva. Format: con
 - **Consequences:** the baseline is a single clean run, not an average (chosen over the better runs so the gate is not set on a lucky one); it should be re-measured when the golden set grows. Branch protection is a repository
   setting the owner applies (steps in the policy). The live workflow was written from the documentation and has not been executed.
 
+## ADR-022 Monitoring from text-free traces; thumbs with fixed reason codes; alerts with minimum sample sizes
+- **Decision:** (1) `POST /api/feedback` stores a thumbs up/down against the answer's `message_id` (the id the trace log already uses) with one of five fixed reason codes and the model mode; there is no free-text field, because
+  free text can carry personal data and a fixed list can be counted. One rating per answer; rating again changes it; limited to 60 per client per 10 minutes. (2) The trace now records the distance of the nearest passage
+  (`retrieval.best_distance`) and `top_k`, so retrieval drift is visible without storing any text. (3) `app/eval/monitoring.py` (stdlib) turns a window of traces and ratings into a summary (traffic, errors by code, latency p50/p95,
+  first word, cost, no-passage rate, distance statistics, intent and mode mix, thumbs) and evaluates alerts against a reference window and the age of the last successful document sync. `app/services/monitoring_service.py` builds the
+  report once; `GET /api/admin/monitoring/summary` and `scripts/monitor_traces.py` both use it, so they cannot disagree. `--evidently` adds a data-drift report.
+- **Why:** an LLM system degrades silently (a provider slows down, documents change, questions shift). The numbers that show it must exist before the incident, and they must not become a second copy of what students typed.
+- **Guards against noise:** rate alerts need at least 20 requests (smaller windows are shown with an info line), thumbs alerts need 10 votes, drift needs a reference window with 20 requests, and the stale-index alert only applies when
+  automatic ingestion is enabled. Critical = error rate above 5%; everything else warns. Thresholds are one dataclass (`Thresholds`) and can be changed in code or by the caller.
+- **Consequences:** there is no dashboard page yet (the JSON endpoint and the command are the interface until the admin page in M6). The thumb endpoint is public and a client could rate any id it makes up; it is an opinion signal, not an authority.
+  The distance statistics start from the day this shipped, so drift needs a few days of history before it can fire.
+

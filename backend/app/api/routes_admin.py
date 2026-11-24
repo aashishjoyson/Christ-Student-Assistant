@@ -4,17 +4,28 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 
 from app.api.deps import get_container, require_admin
 from app.container import AppContainer
 from app.db.models import IngestedFile, SyncRun
+from app.domain.clock import utcnow
 from app.rag.ingest import IngestionService, SyncAlreadyRunning, estimate_embedding_cost
 from app.schemas.admin import IngestedFileOut, IngestionStatusResponse, SyncResultOut, SyncRunOut
+from app.services.monitoring_service import build_report
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+
+
+@router.get("/monitoring/summary")
+def monitoring_summary(hours: float = Query(24, gt=0, le=24 * 90), reference_hours: float = Query(168, gt=0, le=24 * 365),
+                       container: AppContainer = Depends(get_container)) -> dict[str, Any]:
+    """Traffic, latency, cost, errors, refusal and distance statistics for the last `hours`, compared with the window before it, plus alerts.
+    Built from the trace log (no message text), the thumbs table and the sync history."""
+    return build_report(container.settings, container.session_factory, utcnow(), hours, reference_hours)
 
 
 def _status(container: AppContainer) -> IngestionStatusResponse:

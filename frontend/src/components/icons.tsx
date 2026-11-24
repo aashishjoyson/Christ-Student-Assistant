@@ -50,3 +50,17 @@ export const PlusIcon = () => (
     <path d="M5 12h14" />
   </Svg>
 );
+
+export const ThumbUpIcon = () => (
+  <Svg>
+    <path d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3Z" />
+    <path d="M7 11l4-8a2 2 0 0 1 2 2v4h5.5a2 2 0 0 1 2 2.3l-1.1 7A2 2 0 0 1 17.4 20H7" />
+  </Svg>
+);
+
+export const ThumbDownIcon = () => (
+  <Svg>
+    <path d="M17 13V4h3a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-3Z" />
+    <path d="M17 13l-4 8a2 2 0 0 1-2-2v-4H5.5a2 2 0 0 1-2-2.3l1.1-7A2 2 0 0 1 6.6 4H17" />
+  </Svg>
+);

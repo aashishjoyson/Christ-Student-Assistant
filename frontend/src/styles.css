@@ -281,3 +281,17 @@ svg { display: block; }
   background: var(--navy-700); border-radius: 2px; animation: blink 1s steps(2, start) infinite;
 }
 @keyframes blink { to { visibility: hidden; } }
+
+/* Thumbs under an answer */
+.feedback { margin-top: 0.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; font-size: 0.72rem; white-space: normal; }
+.feedback.done { color: var(--good); font-weight: 600; }
+.thumb { display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem; padding: 0; border: 1px solid #cfd8ea; border-radius: 999px;
+  background: #fff; color: var(--navy-800); cursor: pointer; }
+.thumb svg { width: 0.95rem; height: 0.95rem; }
+.thumb:hover:not(:disabled), .thumb[aria-expanded="true"] { background: var(--navy-100); }
+.thumb:focus-visible, .chip:focus-visible { outline: 2px solid var(--navy-800); outline-offset: 2px; }
+.thumb:disabled { opacity: 0.5; cursor: default; }
+.reasons { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; }
+.chip { border: 1px solid #cfd8ea; border-radius: 999px; background: #fff; color: var(--navy-800); font: inherit; font-size: 0.7rem; padding: 0.15rem 0.55rem; cursor: pointer; }
+.chip:hover { background: var(--navy-100); }
+

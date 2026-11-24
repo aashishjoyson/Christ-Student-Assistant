@@ -112,3 +112,18 @@ class SyncRun(Base):
     files_failed: Mapped[int] = mapped_column(Integer, default=0)
     files_deleted: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, default=None)
+
+
+class Feedback(Base):
+    """A thumbs up/down on one answer. Keyed by the answer's message id (the same id the trace log uses). No message text, no identity."""
+
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    rating: Mapped[str] = mapped_column(String(4))  # "up" | "down"
+    reason: Mapped[str | None] = mapped_column(String(24), default=None)  # a fixed code, only with "down"; never free text
+    model_mode: Mapped[str | None] = mapped_column(String(16), default=None)  # direct | rag | rag_peft
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
+

@@ -41,6 +41,7 @@ class AppContainer:
     graph: Any
     chat_service: ChatService
     verify_limiter: SlidingWindowLimiter
+    feedback_limiter: SlidingWindowLimiter
     ingestion: IngestionService | None = None  # local folder; None when embeddings are not configured
     drive_ingestion: IngestionService | None = None  # Google Drive; None when not configured or its credentials are unusable
     drive_error: str | None = None  # why Drive is unavailable (safe to show: no credentials, no file contents)
@@ -120,6 +121,7 @@ def build_container(
         verify_limiter=SlidingWindowLimiter(
             settings.verify_max_attempts, timedelta(minutes=settings.verify_window_minutes)
         ),
+        feedback_limiter=SlidingWindowLimiter(60, timedelta(minutes=10)),  # ratings per client; a thumb is cheap, a flood is not
         ingestion=local,
         drive_ingestion=drive,
         drive_error=drive_error,

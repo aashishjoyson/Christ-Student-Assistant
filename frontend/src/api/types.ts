@@ -89,3 +89,6 @@ export type StreamEvent =
   | { type: "delta"; text: string }
   | { type: "final"; response: ChatResponse }
   | { type: "error"; code: string; message: string };
+
+export type FeedbackRating = "up" | "down";
+export type FeedbackReason = "wrong_answer" | "not_helpful" | "missing_source" | "too_slow" | "other";

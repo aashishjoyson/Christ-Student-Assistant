@@ -1,4 +1,5 @@
 import type { ChatResponse, HandledBy } from "../api/types";
+import { FeedbackBar } from "./FeedbackBar";
 import { SparkIcon } from "./icons";
 import { Markdown } from "./Markdown";
 
@@ -106,6 +107,7 @@ export function MessageView({ message }: { message: UiMessage }) {
           <summary>How this was handled</summary>
           <code>{r.workflow_path.join(" → ")}</code>
         </details>
+        <FeedbackBar messageId={r.message_id} modelMode={r.handled_by.mode} />
       </div>
     </div>
   );

@@ -161,8 +161,12 @@ class AcademicNodes:
             return {"node_path": path, "error": _error("retrieval_failed", f"Retrieval failed: {exc}", 502),
                     "condense_llm": condense_meta}
         kept = [c for c in chunks if c.distance is None or c.distance <= s.rag_max_distance]
+        distances = [c.distance for c in chunks if c.distance is not None]
         return {
-            "retrieval": {"ready": True, "returned": len(chunks), "kept": len(kept),
+            # best_distance: how close the nearest passage was. A drift in it (documents changed, embeddings changed, questions changed)
+            # is visible in the traces without any message text.
+            "retrieval": {"ready": True, "returned": len(chunks), "kept": len(kept), "top_k": s.rag_top_k,
+                          "best_distance": round(min(distances), 4) if distances else None,
                           "query_rewritten": condense_meta is not None},
             "retrieved": [asdict(c) for c in kept],
             "condense_llm": condense_meta,
