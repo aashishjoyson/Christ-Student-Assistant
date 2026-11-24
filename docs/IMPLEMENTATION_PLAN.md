@@ -179,16 +179,21 @@ PyPI latest is **0.7.23** (Python >= 3.10). See `docs/DECISIONS.md` ADR-014 and 
   (invariant 7), so text-quality metrics come from evaluation runs; trace monitoring uses metadata unless `TRACE_INCLUDE_TEXT=true` is opted into for a dev session.
 - Evidently reports are artefacts under `storage/eval/<run_id>/` and a local workspace under `storage/evidently/` (both git-ignored).
 
-**7.0 Install spike (do first; ask before any `pip install`)**
-- [ ] In a throw-away venv, install `evidently==0.7.23` and run the offline example (`TextLength`, `IncludesWords`, a
-      `CustomColumnDescriptor`, `TextEvals`, `.dict()`, `.save_html()`).
-- [ ] Record whether Windows Application Control blocks any of its compiled dependencies (scipy, scikit-learn, statsmodels;
-      `numpy.random` was blocked once on this machine). If blocked: run Evidently in CI (Linux) only and keep local reports on our own CSV/HTML.
-- [ ] Confirm the `[llm]` extra is **not** needed (it pulls `torch`/`transformers`, which conflicts with "no local LLM inference"), and check
-      that `litellm` (used by the judges) works next to `openai` 3.x; if not, judges go through our own `OpenAICompatibleChatClient` wrapped as a custom descriptor.
-- [ ] Find out (not documented in what was read): how pass/fail of `tests=[...]` appears in `report.dict()`/`json()` (needed for the CI exit code);
-      whether slicing by a segment column is supported; what the library-side synthetic-data API offers.
-- [ ] Write the findings into `docs/TECHNICAL_REFERENCES.md` (re-check log) and decide go / fallback.
+**7.0 Install spike - DONE 2026-11-24** (throwaway venv outside the repo; nothing was installed into `backend/.venv`)
+- [x] `evidently==0.7.23` installs and runs the offline example (`TextLength`, `IncludesWords`, `CustomColumnDescriptor`, `TextEvals`,
+      `.dict()`, `.save_html()`); import takes about 5 s; the HTML report is about 3.6 MB.
+- [x] **Pin `pandas>=2.2,<3`.** Evidently 0.7.23 does not pin pandas; with pandas 3.1.1 `import evidently` fails (it imports a function pandas 3
+      removed). Recorded in `backend/requirements-eval.txt`.
+- [x] Windows Application Control: scipy, scikit-learn, statsmodels, nltk, plotly, litestar and `numpy.random` import fine. Of 297 compiled modules, 4 were
+      blocked (`pyarrow._dataset`, two in `scipy.signal`, one in `statsmodels.tsa`); none are used by our flows, and a Parquet round-trip still works.
+      Baselines are stored as JSONL/CSV anyway. Fallback if a future feature hits a block: run that part in CI (Linux).
+- [x] The `[llm]` extra is not needed. `litellm>=1.74.3` resolves next to `openai==3.57.0` (resolver dry run only; a real judge call is not tested yet).
+- [x] **CI pass/fail:** `snapshot.dict()["tests"]` is a list; each item has `status` (SUCCESS / FAIL), a `description` ("Actual value 18.667 < 20.000") and
+      `test_config.is_critical`. The runner exits 1 if any critical test is not SUCCESS. `Report(..., include_tests=True).run(current, reference)` works.
+- [x] **Slicing exists:** `GroupBy(metric, "column")` (`evidently.metrics`) runs a metric and its tests once per label of a categorical column. Verified: a
+      "typos" slice failed a length threshold while "formal" passed. The gap is the difference between per-label values. A `BiasLLMEval` judge descriptor also exists.
+- [x] Library synthetic-data API: no module found in 0.7.23 (file-name search); adversarial/synthetic generation is Cloud-only as documented, so we author our own sets.
+- **Decision: go.** Next: 7.3 (adversarial suite) and 7.6 (workflow parity), neither needs RAG; then Phase 2.
 
 **7.1 Evaluation runner** (the bullets above): `app/eval/metrics.py`, `scripts/run_evaluation.py`; builds an Evidently `Dataset`
 from `results.csv` for the sections below.
@@ -238,8 +243,8 @@ from `results.csv` for the sections below.
 **7.6 Bias and fairness audit** (use-case 5)
 - [ ] Slices (documented, synthetic): applicant side - programme, interview mode, application status; language side - formal English, informal,
       typos, Hinglish/code-mixed, non-native phrasing; **paraphrase pairs that differ only in the name** (names must never change behaviour).
-- [ ] Per-slice metrics: intent/action correctness (workflow), refusal rate, fact match, citation hit, answer length, latency, error rate. Run the same
-      `Report` per slice and compute gaps (max - min); tests on the gap (proposed <= 10 percentage points, to be calibrated after the first run).
+- [ ] Per-slice metrics: intent/action correctness (workflow), refusal rate, fact match, citation hit, answer length, latency, error rate. Use
+      `GroupBy(metric, "slice")` (verified in 7.0) for per-slice metrics and tests, and compute gaps (max - min); tests on the gap (proposed <= 10 percentage points, to be calibrated after the first run).
 - [ ] Deterministic paraphrase-parity test (same question, different name/programme -> same intent and action) as an integration test.
 - Limits stated in every report: tiny synthetic sample, so report effect sizes and bootstrap intervals, never claims of statistical fairness;
   this is an audit harness, not a certification.

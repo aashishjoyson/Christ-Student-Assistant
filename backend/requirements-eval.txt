@@ -1,0 +1,13 @@
+# Optional: Evidently evaluation / monitoring / validation reports (Phase 7). The app works without it
+# and never imports it. Validated on 2026-11-24 in a THROWAWAY venv (Python 3.12, Windows); not yet
+# installed into backend/.venv - do that in Phase 7.1 and re-run the test suite. Findings: docs/TECHNICAL_REFERENCES.md.
+#
+# pandas must stay < 3: evidently 0.7.23 does not pin pandas, and with pandas 3.x `import evidently` fails
+# (it imports pandas.core.dtypes.common.infer_dtype_from_object, removed in pandas 3).
+#
+# Do NOT add the `evidently[llm]` extra: it installs torch/transformers (this project forbids local LLM inference).
+# LLM-judged descriptors (only with --judge, capped) go through litellm, which resolves next to openai 3.x:
+#   litellm>=1.74.3
+-r requirements.txt
+evidently>=0.7.23,<0.8
+pandas>=2.2,<3

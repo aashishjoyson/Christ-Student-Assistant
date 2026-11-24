@@ -92,6 +92,6 @@ Short records of the choices most likely to be questioned in a viva. Format: con
   - LLM-judged descriptors need an LLM provider (OpenAI by default through LiteLLM): optional, capped, off in tests and CI. Judge model is configurable and should differ from the answering model.
   - The `[llm]` extra pulls `torch`/`transformers`; not installed by default (no local LLM inference). Hugging Face descriptors (e.g. toxicity classifier) are a separate decision.
   - Evidently's adversarial-data generator and some no-code features are Cloud-only; the adversarial set and fairness slices are authored in this repo.
-  - Install is unproven on the dev machine (Windows Application Control blocked compiled files before): Phase 7.0 is a spike with a documented fallback (own CSV/HTML reports locally, Evidently in CI).
+  - Install validated by the 7.0 spike (2026-11-24): works with `pandas<3`; four unused compiled modules are blocked by Windows Application Control on the dev machine; fallback for any blocked feature is CI (Linux). Pass/fail is read from `snapshot.dict()["tests"]`; per-slice reports use `GroupBy`.
   - The API changed substantially in 0.7 (`Dataset`/`DataDefinition`, tests inside `Report`); old tutorials do not apply. Pin the version.
 - **Alternatives considered:** hand-rolled reports only (more code, no UI, no tests framework); MLflow only (already optional, weaker on LLM descriptors and pass/fail tests); Ragas/DeepEval-style libraries (not requested).
