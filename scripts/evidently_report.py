@@ -9,6 +9,9 @@ Usage (from the repo root):
   cd backend && PARITY_RESULTS_JSON=../storage/eval/parity.json pytest tests/unit/test_eval_parity.py
   python scripts/evidently_report.py parity --results storage/eval/parity.json --out storage/eval/run1
 
+  python scripts/run_evaluation.py --evidently      # or, for a finished run:
+  python scripts/evidently_report.py evaluation --results storage/eval/<run_id>/results.jsonl --out storage/eval/<run_id>
+
 Exit codes: 0 all critical tests passed; 1 a critical test failed (or a parity slice regressed); 2 missing dependency.
 Warnings (non-critical tests, e.g. the known fairness gap) are shown in the report but do not fail the run.
 """
@@ -51,6 +54,38 @@ def build_adversarial(rows: list[dict]) -> Report:
     ])
 
 
+OUTCOMES = ("correct", "false_refusal", "wrong_answer", "correct_refusal", "unsupported_answer", "error")
+
+
+def outcome(row: dict) -> str:
+    """One label per answer, so a report can show the share of each outcome per mode."""
+    if row.get("error_code"):
+        return "error"
+    if row["answerable"]:
+        return "correct" if row["answered_correctly"] else ("false_refusal" if row["refused"] else "wrong_answer")
+    return "correct_refusal" if row["refused"] else "unsupported_answer"
+
+
+def build_evaluation(rows: list[dict]) -> Report:
+    # Critical: a citation must never point at a passage that was not supplied. Everything else is descriptive here: pass/fail gates
+    # against a baseline belong to the CI step (plan M3), so this report shows the picture per mode and per category without failing.
+    metrics: list = [CategoryCount(column="citations_valid", category="no", tests=[eq(0)])]
+    for name in OUTCOMES:
+        metrics.append(GroupBy(CategoryCount(column="outcome", category=name), "mode"))
+        metrics.append(GroupBy(CategoryCount(column="outcome", category=name), "category"))
+    return Report(metrics)
+
+
+def evaluation_frame(rows: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame([{"mode": r["mode"], "category": r["category"], "outcome": outcome(r),
+                          "citations_valid": "yes" if r["citations_valid"] else "no"} for r in rows])
+
+
+def load_rows(path: Path) -> list[dict]:
+    text = path.read_text(encoding="utf-8")
+    return [json.loads(line) for line in text.splitlines() if line.strip()] if path.suffix == ".jsonl" else json.loads(text)
+
+
 def build_parity(rows: list[dict]) -> Report:
     return Report([
         GroupBy(CategoryCount(column="correct", category="yes", share_tests=[gte(PARITY_TARGET, is_critical=False)]), "slice"),
@@ -59,18 +94,18 @@ def build_parity(rows: list[dict]) -> Report:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("kind", choices=["adversarial", "parity"])
+    parser.add_argument("kind", choices=["adversarial", "parity", "evaluation"])
     parser.add_argument("--results", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--baseline", type=Path, default=REPO_ROOT / "data" / "eval" / "baselines" / "parity_intent_baseline.json")
     args = parser.parse_args()
 
-    rows = json.loads(args.results.read_text(encoding="utf-8"))
-    df = pd.DataFrame(rows)
+    rows = load_rows(args.results)
+    df = evaluation_frame(rows) if args.kind == "evaluation" else pd.DataFrame(rows)
     cats = [c for c in df.columns if c != "failures" and c != "id"]
     definition = DataDefinition(categorical_columns=cats, text_columns=[c for c in ("failures",) if c in df.columns])
     dataset = Dataset.from_pandas(df, data_definition=definition)
-    report = build_adversarial(rows) if args.kind == "adversarial" else build_parity(rows)
+    report = {"adversarial": build_adversarial, "parity": build_parity, "evaluation": build_evaluation}[args.kind](rows)
     snapshot = report.run(dataset, None)
 
     args.out.mkdir(parents=True, exist_ok=True)

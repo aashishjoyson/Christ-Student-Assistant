@@ -148,3 +148,27 @@ Short records of the choices most likely to be questioned in a viva. Format: con
   answering. Drive access is `drive.readonly`, and a listing failure never deletes anything (an outage must not look like "every file was removed").
 - **Consequences:** a change shows up within one interval (default 5 minutes), not instantly. Switching the source of truth needs `--purge-local` once so the same document is not
   indexed twice. Push (`changes.watch`) can replace the trigger later without touching the engine.
+
+## ADR-019 A golden question set with proven facts, and a frozen-configuration evaluation run
+- **Decision:** `data/eval/academic_real.jsonl` holds questions with the facts a correct answer must state. Every answerable case carries `evidence`: literal quotes from the real
+  documents, and every unanswerable case carries `absent_terms` that occur in no document. `scripts/check_golden_set.py` proves both against the documents, so no expected fact is invented
+  (it caught four of my own "absent" terms that were in fact present). `scripts/run_evaluation.py` asks every question in every mode through the real graph and writes a run folder whose
+  `config.json` freezes everything that can change an answer (git commit, prompt versions, model ids, retrieval settings, golden-set hash, fingerprint of the indexed files).
+- **Why:** an answer cannot be called better or worse without a fixed question set and a known configuration. Deterministic matching (normalised text, accepted wordings joined by `|`) keeps the
+  check cheap, repeatable and free of a second model's bias; its blind spots are written down in the report (a correct fact with a wrong extra claim still passes).
+- **Diagnostics that decide what to fix:** `context_recall` (the proving quote reached the model) separates retrieval failures from generation failures; `routed_academic` shows questions sent to the
+  personal-data path; the distance calibration shows whether a cut-off can separate answerable from unanswerable questions at all (on this data the two groups overlap, so the LLM's own refusal does that job).
+- **Consequences:** a run costs about half a cent and about two minutes. Identical settings move by about one question between runs, so differences of one question are noise. Settings tuned on
+  this set are optimistic for unseen questions; a held-out set is a listed follow-up. The run keeps its own trace log so evaluation never mixes with real traffic.
+
+## ADR-020 Structure-aware parsing and lexical re-ranking, adopted because the evaluation measured them
+- **Decision:** (1) Calendar pages are split per dated entry and every entry repeats `Month: <month year>` (a calendar page is recognised by at least five dated lines; the month never carries over a non-calendar page).
+  (2) A markdown block with three or more one-line questions becomes one section per question and answer. (3) HTML and pasted CSS are removed from spreadsheet cells. (4) Retrieval fetches a wide candidate pool
+  (150) by meaning and keeps the best 8 after rewarding passages that contain the query's rare words (`app/rag/rerank.py`); the reported cosine distance is unchanged. (5) The two intent-routing errors the
+  evaluation found are fixed (a Roman numeral "I" in "Session-I" was read as the student; the classifier prompt, now `intent-llm-v2`, says an "unsupported" request must ask us to change something).
+  (6) `sync --force` re-parses everything and re-embeds only chunks whose text changed, so a parser change reaches the index without paying for unchanged files.
+- **Evidence (same 38 questions):** 70% first run; 83% after parsing and routing fixes alone; 93% with top-k 8, cut-off 0.75 and the re-rank. Context recall 90% -> 100%, MRR 0.90 -> 0.94.
+  A re-rank over a pool of 40 showed no gain because the right passage was not in the pool; a pool of 150 did.
+- **Consequences:** the calendar chunks are small (one entry each), so a question that needs a whole month ("list the November holidays") depends on top-k. `.env` files that pin `RAG_TOP_K` or `RAG_MAX_DISTANCE`
+  override the new defaults. The two remaining misses are spreadsheet fee questions where many near-identical programme rows compete.
+

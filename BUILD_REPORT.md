@@ -1,5 +1,34 @@
 # Build report
 
+## M2 - Evaluation harness, golden set, and what it found (2026-11-24)
+
+| Check | Result |
+|---|---|
+| `pytest` (full backend) | **439 passed** (97 new, from 342: evaluation metrics, golden set, runner, structure-aware parsing and cleaning, re-ranking, routing); `ruff` clean; secret scan passed |
+| Golden set | 38 questions on the 4 real documents: 30 answerable (each proven by literal quotes) + 8 unanswerable (proven absent); `check_golden_set.py` passes |
+| Official run `eval-20261124-134100-7304c1` | Model 2: **93.3%** accuracy (28/30), context recall 100%, hit@8 100%, MRR 0.944, correct refusals 8/8, citation numbers valid; Model 1: 10% (3/30). A repeat gave 93.3% again |
+| Evidently | `evaluation` report built; its one critical test (no invalid citation numbers) passes |
+| Cost | a full two-mode run is about $0.008; the whole tuning session about $0.15 |
+
+**What the harness found (all fixed, each by a test first):**
+1. 25 of 312 course rows had **pasted CSS in the Fees cell**; those junk chunks carried the course name and outranked the real fee text. Markup is now stripped from cells.
+2. **Calendar chunks lost their month** and 30 near-identical "Last date for submission of CIA ..." lines shared one chunk. Calendar pages are now split per dated entry, each carrying `Month: <month year>`.
+3. **FAQ answers were cut across chunks.** Each question and answer is now one section.
+4. A Roman numeral **"I" in "Session-I" was read as the student** and sent a general question to the personal interview path (asking the visitor to verify). Fixed in the rules and the LLM gate.
+5. The intent classifier labelled "how long does a refund take if I paid ..." as an unsupported action; the prompt (`intent-llm-v2`) now says an unsupported request must ask us to change something.
+6. The old distance cut-off (0.6) **rejected answerable questions** on the old index; with the new chunking every answerable question's best passage is within 0.54, so 0.75 never withholds evidence.
+7. Dense retrieval alone could not separate near-duplicates; a lexical re-rank over a pool of 150 raised context recall 90% -> 100%. At a pool of 40 it did nothing.
+8. *Measurement bugs I made and fixed:* citation validity compared against the number of citations listed instead of the passages supplied (5 false alarms, caught by the Evidently critical test); calibration used the re-ranked first passage instead of the best vector distance; context recall counted passages the cut-off would have withheld.
+
+**Open:** the 2 BBA fee questions (courses spreadsheet) still get "could not find" although the passage reaches the model; the golden set is small and was used for tuning (a held-out set is needed before trusting 93%);
+the LLM judge is not built; Model 3 columns are empty. Run-to-run noise is about one question.
+
+**What you must do:** in `.env` set `RAG_TOP_K=8` and `RAG_MAX_DISTANCE=0.75` (your file pins the old values 4 and 0.6, which override the new defaults), then restart the API; optionally add `RAG_LEXICAL_WEIGHT=0.30` and
+`RAG_CANDIDATE_POOL=150` (these are already the defaults). Add the same four lines to `.env.example` (I may not edit it). To reproduce: `python scripts/sync_drive_once.py --force` (stop the API first), then
+`python scripts/run_evaluation.py --evidently`.
+
+---
+
 ## M1 / Phase 3 - Google Drive source and automatic ingestion poller (2026-11-24)
 
 | Check | Result |

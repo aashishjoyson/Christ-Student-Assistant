@@ -4,13 +4,19 @@ from __future__ import annotations
 
 from app.domain.documents import RetrievedChunk
 from app.rag.embeddings import Embedder
+from app.rag.rerank import rerank
 from app.rag.vector_store import ChromaStore
 
 
 class ChromaRetriever:
-    def __init__(self, embedder: Embedder, store: ChromaStore) -> None:
+    """lexical_weight > 0 turns on re-ranking: the store returns `candidate_pool` passages by meaning, and the best `top_k` are chosen after
+    rewarding passages that contain the query's rare words (see app/rag/rerank.py). 0 keeps the plain vector order."""
+
+    def __init__(self, embedder: Embedder, store: ChromaStore, lexical_weight: float = 0.0, candidate_pool: int = 40) -> None:
         self._embedder = embedder
         self._store = store
+        self._lexical_weight = lexical_weight
+        self._pool = candidate_pool
 
     @property
     def ready(self) -> bool:
@@ -20,7 +26,8 @@ class ChromaRetriever:
         if not query.strip():
             return []
         vector = self._embedder.embed([query]).vectors[0]
-        return [
+        wanted = max(top_k, self._pool) if self._lexical_weight > 0 else top_k
+        chunks = [
             RetrievedChunk(
                 chunk_id=hit.id,
                 text=hit.text,
@@ -31,8 +38,9 @@ class ChromaRetriever:
                 source_url=hit.metadata.get("source_url"),
                 distance=hit.distance,
             )
-            for hit in self._store.query(vector, top_k)
+            for hit in self._store.query(vector, wanted)
         ]
+        return rerank(query, chunks, top_k, self._lexical_weight) if self._lexical_weight > 0 else chunks
 
     def describe(self) -> dict[str, object]:
         return {"backend": "chroma", "ready": self.ready, "chunks": self._store.count(),

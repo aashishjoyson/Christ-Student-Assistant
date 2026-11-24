@@ -68,8 +68,12 @@ class Settings(BaseSettings):
     model3_max_retries: int = 1
 
     # --- RAG ---
-    rag_top_k: int = 4
-    rag_max_distance: float = 0.6
+    # Retrieval defaults were chosen with the golden-set evaluation (docs/IMPLEMENTATION_PLAN.md M2, BUILD_REPORT.md): 8 passages, a distance
+    # cut-off that no longer rejects answerable questions, and a lexical re-rank over a wide candidate pool.
+    rag_top_k: int = 8
+    rag_max_distance: float = 0.75
+    rag_lexical_weight: float = Field(0.30, ge=0.0, le=1.0)  # 0 = plain vector order; see app/rag/rerank.py
+    rag_candidate_pool: int = Field(150, ge=1, le=200)  # passages fetched by meaning before re-ranking
     rag_chunk_size: int = 900
     rag_chunk_overlap: int = 120
     rag_no_evidence_short_circuit: bool = True

@@ -81,11 +81,13 @@ class IngestionService:
         self._lock = lock or threading.Lock()  # share one lock across sources so two syncs never write to Chroma at once
 
     # ------------------------------------------------------------------ public
-    def sync(self, trigger: str = "manual") -> SyncResult:
+    def sync(self, trigger: str = "manual", force: bool = False) -> SyncResult:
+        """force=True re-reads and re-parses every file even if the source says it did not change. Use it after changing the parser or
+        chunker: a file is only re-embedded if its chunks actually differ from what is stored, so unchanged output costs nothing."""
         if not self._lock.acquire(blocking=False):
             raise SyncAlreadyRunning("a sync is already running")
         try:
-            return self._sync(trigger)
+            return self._sync(trigger, force)
         finally:
             self._lock.release()
 
@@ -107,7 +109,7 @@ class IngestionService:
             self._lock.release()
 
     # ------------------------------------------------------------------ internals
-    def _sync(self, trigger: str) -> SyncResult:
+    def _sync(self, trigger: str, force: bool = False) -> SyncResult:
         with self._session_factory() as session:
             run = SyncRun(source=self._source.name, trigger=trigger, started_at=self._now())
             session.add(run)
@@ -124,7 +126,7 @@ class IngestionService:
 
             for file in listed:
                 try:
-                    outcome = self._process(session, file, rows.get(file.source_file_id), result)
+                    outcome = self._process(session, file, rows.get(file.source_file_id), result, force)
                 except Exception as exc:  # one bad file must never stop the sync or lose the old version
                     session.rollback()
                     outcome = "failed"
@@ -160,7 +162,7 @@ class IngestionService:
         result.status, result.error = status, error
         return result
 
-    def _process(self, session: Session, file: SourceFile, row: IngestedFile | None, result: SyncResult) -> str:
+    def _process(self, session: Session, file: SourceFile, row: IngestedFile | None, result: SyncResult, force: bool = False) -> str:
         if row is None:
             row = IngestedFile(source=self._source.name, source_file_id=file.source_file_id, name=file.name,
                                mime_type=file.mime_type, status="pending")
@@ -177,12 +179,12 @@ class IngestionService:
             return "unsupported"
 
         indexed = row.status == "indexed" and bool(row.active_version)
-        if indexed and file.remote_checksum is not None and row.remote_checksum == file.remote_checksum:
+        if indexed and not force and file.remote_checksum is not None and row.remote_checksum == file.remote_checksum:
             return "skipped"  # cheap check: nothing downloaded, nothing embedded
 
         content, mime = self._source.fetch(file)
         sha = hashlib.sha256(content).hexdigest()
-        if indexed and row.content_sha256 == sha:
+        if indexed and not force and row.content_sha256 == sha:
             row.remote_checksum = file.remote_checksum  # metadata changed, content did not
             return "skipped"
 

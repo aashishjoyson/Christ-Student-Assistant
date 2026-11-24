@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import codecs
 import csv
+import html
 import io
 import re
 from collections.abc import Iterator
@@ -108,7 +109,83 @@ def _parse_pdf(content: bytes) -> list[ParsedSection]:
     reader = PdfReader(io.BytesIO(content))
     if reader.is_encrypted:
         raise ParseError("the PDF is encrypted")
-    return [ParsedSection(text=page.extract_text() or "", page=number) for number, page in enumerate(reader.pages, start=1)]
+    return _carry_month_headings([page.extract_text() or "" for page in reader.pages])
+
+
+_MONTH_HEADING = re.compile(
+    r"^[ \t]*(January|February|March|April|May|June|July|August|September|October|November|December)[ \t]+(20\d\d)[ \t]*$", re.MULTILINE)
+# A calendar entry starts with a day and its weekday ("01 (Mon)", "27, 28, 29 (Thu, Fri, Sat)", "21-22 (Sat-Sun)"), a day range on its
+# own ("(13-18)") or a range with month names ("28 Aug- 03 Sep"). Lines that do not start like this belong to the entry above them.
+_CALENDAR_ENTRY = re.compile(
+    r"^[ \t]*(?:\d{1,2}(?:[ \t]*[-–,][ \t]*\d{1,2})*[ \t]*\([A-Za-z]{3}"
+    r"|\(\d{1,2}[ \t]*[-–][ \t]*\d{1,2}\)"
+    r"|\d{1,2}[ \t]+[A-Z][a-z]{2}[ \t]*[-–])",
+    re.MULTILINE,
+)
+MIN_CALENDAR_ENTRIES = 5
+
+
+def _carry_month_headings(pages: list[str]) -> list[ParsedSection]:
+    """One section per page, except calendar pages: there, entries such as "10 (Tue) Holiday- Deepavali" only say which month they are in
+    through a heading ("November 2026") that may be pages away, and a chunk without it cannot answer "what is the date of Deepavali?".
+    So a calendar page is split at its month headings, and each dated entry becomes its own section that repeats "Month: <month year>"
+    at the top of its chunk (thirty near-identical "Last date for submission of CIA ..." lines in one 900-character chunk cannot be
+    told apart; one entry per chunk can). The month is carried across consecutive calendar pages and dropped on any other page, so a
+    table of dates in a handbook never gets a month it does not belong to."""
+    sections: list[ParsedSection] = []
+    current: str | None = None
+    for number, text in enumerate(pages, start=1):
+        if len(_CALENDAR_ENTRY.findall(text)) < MIN_CALENDAR_ENTRIES:
+            current = None
+            sections.append(ParsedSection(text=text, page=number))
+            continue
+        marks = list(_MONTH_HEADING.finditer(text))
+        starts = [0, *[m.start() for m in marks]]
+        labels = [current, *[f"{m.group(1)} {m.group(2)}" for m in marks]]
+        for start, end, label in zip(starts, [*starts[1:], len(text)], labels, strict=True):
+            prefix = f"Month: {label}" if label else None
+            piece = text[start:end]
+            cuts = [m.start() for m in _CALENDAR_ENTRY.finditer(piece)]
+            lead = piece[: cuts[0]] if cuts else piece
+            if lead.strip() and not _MONTH_HEADING.fullmatch(lead.strip()):  # the month heading alone says nothing the prefix does not
+                sections.append(ParsedSection(text=lead, page=number, prefix=prefix))
+            for cut, stop in zip(cuts, [*cuts[1:], len(piece)], strict=False):  # no entries at all: `lead` above already holds the piece
+                sections.append(ParsedSection(text=piece[cut:stop], page=number, prefix=prefix))
+        current = labels[-1]
+    return sections
+
+
+# ---------------- markup inside cells ----------------
+_HTML_TAGS = (r"html|body|style|script|table|thead|tbody|tfoot|tr|td|th|div|span|p|br|ul|ol|li|a|b|i|u|em|strong|h[1-6]|img|section|header|"
+              r"footer|nav|form|input|label|button|pre|code|small|sup|sub|hr|font|center|blockquote")
+_TAG = re.compile(rf"</?(?:{_HTML_TAGS})\b[^<>]*>", re.IGNORECASE)
+_STYLE_SCRIPT = re.compile(r"<(style|script)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL)
+_CELL_END = re.compile(r"</(?:td|th)\s*>", re.IGNORECASE)
+_ROW_END = re.compile(r"</(?:tr|p|div|li|ul|ol|h[1-6]|table)\s*>|<br\s*/?>", re.IGNORECASE)
+_HAS_CSS = re.compile(r"\{[^{}]*[\w-]+\s*:[^{}]*;[^{}]*\}")
+# A CSS rule: selector(s) made of tag names, .classes, #ids, pseudo-classes or an @rule, then { declarations }. Plain words are never selectors.
+_SELECTOR_UNIT = (rf"(?:@[\w-]+[^{{}}]{{0,120}}|(?:[.#][\w-]+|\b(?:{_HTML_TAGS})\b|\*)"
+                  r"(?:[.#:][\w-]+(?:\([^)]*\))?|\[[^\]]*\])*)")
+_CSS_RULE = re.compile(rf"{_SELECTOR_UNIT}(?:[\s,>+~]+{_SELECTOR_UNIT})*\s*\{{[^{{}}]*:[^{{}}]*\}}")
+_EMPTY_AT_RULE = re.compile(r"@[\w-]+[^{}]{0,120}\{\s*\}")
+
+
+def strip_markup(text: str) -> str:
+    """Remove HTML tags and pasted CSS from a text cell, keeping the readable text. Text without markup is returned unchanged."""
+    if not text or not (_TAG.search(text) or _HAS_CSS.search(text)):
+        return text
+    cleaned = text
+    if _TAG.search(cleaned):
+        cleaned = _STYLE_SCRIPT.sub(" ", cleaned)
+        cleaned = _ROW_END.sub("\n", _CELL_END.sub(" | ", cleaned))
+        cleaned = html.unescape(_TAG.sub(" ", cleaned)).replace("\xa0", " ")
+    for _ in range(4):  # nested rules (an @media block around other rules) need a few passes
+        reduced = _EMPTY_AT_RULE.sub(" ", _CSS_RULE.sub(" ", cleaned))
+        if reduced == cleaned:
+            break
+        cleaned = reduced
+    lines = (re.sub(r"\s*\|\s*$", "", re.sub(r"[ \t]+", " ", line)).strip() for line in cleaned.splitlines())
+    return "\n".join(line for line in lines if line)
 
 
 # ---------------- DOCX ----------------
@@ -167,7 +244,7 @@ def _parse_markdown(text: str) -> list[ParsedSection]:
     def flush() -> None:
         body = "\n".join(buffer).strip()
         if body:
-            sections.append(ParsedSection(text=body, section=heading))
+            sections.extend(_split_questions(body, heading))
         buffer.clear()
 
     for line in text.splitlines():
@@ -178,6 +255,33 @@ def _parse_markdown(text: str) -> list[ParsedSection]:
         else:
             buffer.append(line)
     flush()
+    return sections
+
+
+MIN_QUESTIONS = 3
+MAX_QUESTION_CHARS = 300
+
+
+def _split_questions(body: str, heading: str | None) -> list[ParsedSection]:
+    """An FAQ is a run of paragraphs: a one-line question ending in "?", then its answer. Chopped into fixed-size pieces, an answer ends up
+    in a chunk with other questions' text and no longer matches its own question. So when a block holds several questions, each question
+    and its answer become one section (named after the question, which is also what a citation shows). Any other text stays as it was."""
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
+    is_question = [("\n" not in p and p.endswith("?") and len(p) <= MAX_QUESTION_CHARS) for p in paragraphs]
+    if sum(is_question) < MIN_QUESTIONS:
+        return [ParsedSection(text=body, section=heading)]
+    sections: list[ParsedSection] = []
+    pending: list[str] = []  # text before the first question (an intro line), or one question with its answer paragraphs
+    name = heading
+    for paragraph, question in zip(paragraphs, is_question, strict=True):
+        if question:
+            if pending:
+                sections.append(ParsedSection(text="\n\n".join(pending), section=name))
+            pending, name = [paragraph], paragraph
+        else:
+            pending.append(paragraph)
+    if pending:
+        sections.append(ParsedSection(text="\n\n".join(pending), section=name))
     return sections
 
 
@@ -203,7 +307,7 @@ def _render_rows(header: list[str], rows: list[list[str]], label: str) -> list[P
 
 
 def _clean(cell: object) -> str:
-    return " ".join(str(cell).split()) if cell is not None else ""
+    return " ".join(strip_markup(str(cell)).split()) if cell is not None else ""
 
 
 def _parse_csv(text: str) -> list[ParsedSection]:

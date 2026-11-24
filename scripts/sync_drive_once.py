@@ -3,6 +3,7 @@
 Usage (from the repo root, backend venv):
   python scripts/sync_drive_once.py --dry-run     # connect and LIST the folder only: nothing is downloaded, embedded or written
   python scripts/sync_drive_once.py               # real sync: downloads changed files and sends their text to OpenAI for embeddings
+  python scripts/sync_drive_once.py --force       # after changing the parser/chunker: re-parse everything, re-embed only what differs
   python scripts/sync_drive_once.py --purge-local # after a clean sync, remove the local-folder documents from the index (when Drive
                                                   # becomes the source of truth, so the same document is not answered from two places)
 --folder-id and --credentials override .env for a first test. Unchanged files are skipped without any download or embedding.
@@ -32,6 +33,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--purge-local", action="store_true")
+    parser.add_argument("--force", action="store_true", help="re-read and re-parse every file (after a parser or chunker change); only changed chunks are re-embedded")
     parser.add_argument("--folder-id")
     parser.add_argument("--credentials", type=Path)
     args = parser.parse_args()
@@ -78,7 +80,7 @@ def main() -> int:
     if parts.drive is None:
         print(f"Drive is not available: {parts.drive_error or 'OPENAI_API_KEY is missing (needed for embeddings).'}", file=sys.stderr)
         return 2
-    r = parts.drive.sync("manual")
+    r = parts.drive.sync("manual", force=args.force)
     # Purge AFTER a clean Drive sync, never before: if Drive or the embedding call fails, the old (local) index must keep answering.
     if args.purge_local and parts.local is not None:
         if r.status == "succeeded":

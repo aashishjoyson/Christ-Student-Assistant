@@ -34,6 +34,17 @@ APPLICATION_ID_RE = re.compile(r"\bCUAPP-[A-Z0-9]+-\d{4}\b", re.IGNORECASE)
 
 _PERSONAL = re.compile(r"\b(my|mine|i|i'm|i've|me)\b", re.IGNORECASE)
 
+# "Session-I", "MBA Session I", "I semester": a Roman numeral one is a number, not the student speaking. Only an upper-case I that is
+# clearly part of an ordinal is rewritten; "I'm" and a lower-case "i" are never guessed at.
+_ORDINAL_NOUNS = r"session|semester|sem|trimester|term|year|part|phase|level|stage|round|batch|unit|module"
+_ROMAN_ONE = re.compile(
+    rf"(?i:\b(?:{_ORDINAL_NOUNS})[\s\-\u2013]+)I\b(?!['\u2019])|\bI(?=[\s\-\u2013]+(?i:{_ORDINAL_NOUNS})\b)"
+)
+
+
+def strip_ordinals(text: str) -> str:
+    return _ROMAN_ONE.sub(lambda m: m.group(0)[:-1] + "1", text)  # every match ends in the "I" being replaced
+
 _UNSUPPORTED_ACTION = re.compile(
     r"^\s*(please\s+)?((can|could|would|will)\s+you\s+)?(please\s+)?"
     r"(change|update|modify|edit|correct|cancel|withdraw|reschedule|delete|pay|waive|increase)\b"
@@ -77,7 +88,7 @@ _CAPABILITY = re.compile(
 
 
 def _is_personal(text: str) -> bool:
-    return bool(_PERSONAL.search(text) or APPLICATION_ID_RE.search(text))
+    return bool(_PERSONAL.search(strip_ordinals(text)) or APPLICATION_ID_RE.search(text))
 
 
 def classify_intent(message: str) -> IntentResult:

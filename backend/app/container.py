@@ -70,7 +70,8 @@ def build_rag(settings: Settings, session_factory: sessionmaker[Session]) -> Rag
     common: dict[str, Any] = {"chunk_size": settings.rag_chunk_size, "chunk_overlap": settings.rag_chunk_overlap, "lock": lock}
     local = IngestionService(LocalFolderSource(settings.local_docs_dir, include_synthetic=settings.local_docs_include_synthetic),
                              embedder, store, session_factory, **common)
-    parts = RagParts(ChromaRetriever(embedder, store), local=local)
+    retriever = ChromaRetriever(embedder, store, settings.rag_lexical_weight, settings.rag_candidate_pool)
+    parts = RagParts(retriever, local=local)
     if settings.google_drive_folder_id:
         try:
             service = build_drive_service(settings.google_drive_auth_mode, settings.google_drive_credentials_file,
