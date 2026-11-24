@@ -3,8 +3,8 @@
 Usage (from the repo root, backend venv):
   python scripts/sync_drive_once.py --dry-run     # connect and LIST the folder only: nothing is downloaded, embedded or written
   python scripts/sync_drive_once.py               # real sync: downloads changed files and sends their text to OpenAI for embeddings
-  python scripts/sync_drive_once.py --purge-local # first remove the local-folder documents from the index (when Drive becomes the
-                                                  # source of truth, so the same document is not answered from two places)
+  python scripts/sync_drive_once.py --purge-local # after a clean sync, remove the local-folder documents from the index (when Drive
+                                                  # becomes the source of truth, so the same document is not answered from two places)
 --folder-id and --credentials override .env for a first test. Unchanged files are skipped without any download or embedding.
 """
 
@@ -78,9 +78,13 @@ def main() -> int:
     if parts.drive is None:
         print(f"Drive is not available: {parts.drive_error or 'OPENAI_API_KEY is missing (needed for embeddings).'}", file=sys.stderr)
         return 2
-    if args.purge_local and parts.local is not None:
-        print(f"Removed {parts.local.purge()} local-folder document(s) from the index.")
     r = parts.drive.sync("manual")
+    # Purge AFTER a clean Drive sync, never before: if Drive or the embedding call fails, the old (local) index must keep answering.
+    if args.purge_local and parts.local is not None:
+        if r.status == "succeeded":
+            print(f"Removed {parts.local.purge()} local-folder document(s) from the index.")
+        else:
+            print(f"Kept the local-folder documents: the Drive sync was '{r.status}', not 'succeeded'. Fix it and run again.")
     cost = estimate_embedding_cost(settings.openai_embedding_model, r.embed_tokens)
     print(f"sync {r.status}: seen {r.files_seen}, indexed {r.files_indexed}, skipped {r.files_skipped}, failed {r.files_failed}, "
           f"unsupported {r.files_unsupported}, deleted {r.files_deleted}")
