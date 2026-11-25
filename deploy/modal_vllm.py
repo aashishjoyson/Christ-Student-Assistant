@@ -5,18 +5,19 @@ STATUS: UNTESTED ON MODAL. Written on 2026-11-24 from the Modal Servers guide, t
 target_concurrency and unauthenticated). The logic below (configuration, the vLLM command, the adapter download) is exercised by tests/unit/test_modal_deploy_file.py
 with a stand-in for `modal`; what only a real deployment can show is the Modal side. The first `modal deploy` is the real test: read its output.
 
-Setup, once (a separate virtual environment is tidiest):
-  pip install modal==1.6.4
-  modal setup                                  # opens a browser to log in
+Setup, once (a separate virtual environment is tidiest). Windows Application Control blocks the small launcher programs a new environment creates (pip.exe, modal.exe),
+so on such a machine run everything as `python -m ...` (python itself is allowed):
+  python -m pip install modal==1.6.4
+  python -m modal setup                        # opens a browser to log in
   python -c "import secrets; print(secrets.token_urlsafe(32))"     # invent the key vLLM will require; keep it for .env
-  modal secret create cu-helpdesk-vllm HF_TOKEN=<read token for the PRIVATE adapter repo> VLLM_API_KEY=<the key above>
+  python -m modal secret create cu-helpdesk-vllm HF_TOKEN=<read token for the PRIVATE adapter repo> VLLM_API_KEY=<the key above>
 
 Configuration (not secret, but personal, so it is not committed): the base-model commit, the adapter repository and the adapter commit come from either the environment
 (MODEL3_BASE_REVISION, MODEL3_ADAPTER_REPO, MODEL3_ADAPTER_REVISION) or deploy/model3.local.json (git-ignored):
   {"base_model_revision": "<40 hex>", "adapter_repo": "<hf-user>/cu-helpdesk-lora", "adapter_revision": "<40 hex>"}
 
 Deploy and connect:
-  modal deploy deploy/modal_vllm.py
+  python -m modal deploy deploy/modal_vllm.py
   The URL is in the Modal dashboard (Apps > cu-helpdesk-model3) or:
     python -c "import modal; print(modal.Server.from_name('cu-helpdesk-model3', 'Server').get_url())"
   .env:  MODEL3_BASE_URL=<url>/v1   MODEL3_API_KEY=<the same key>   MODEL3_MODEL=cu-helpdesk-lora
