@@ -54,8 +54,18 @@ def test_precision_follows_the_gpus_compute_capability_not_pytorchs_emulation_an
     code = "\n".join(line for c in cells() if c["cell_type"] == "code" for line in "".join(c["source"]).splitlines() if not line.lstrip().startswith("#"))
     assert "BF16 = major >= 8" in code and "get_device_capability(0)" in code
     assert "BF16 = torch.cuda.is_bf16_supported()" not in code
-    assert "if not BF16:" in code and "_chunked_logprob._MM_OUT_DTYPE = False" in code
     assert "compute capability" in code  # the cell prints it, so a wrong choice is visible at once
+    assert "_MM_OUT_DTYPE" not in code  # a patch for TRL's loss kernel was tried and turned out not to be needed: fp16 runs on a T4 without it
+
+
+def test_trainable_weights_are_returned_to_float32_before_training() -> None:
+    """Found on a real Colab T4 run: TRL 1.18.2's SFTTrainer.__init__ converts every trainable weight of a 4-bit model to bfloat16 whatever fp16/bf16 says, and
+    the fp16 gradient scaler then fails with '_amp_foreach_non_finite_check_and_unscale_cuda not implemented for BFloat16'."""
+    code = next("".join(c["source"]) for c in cells() if c["cell_type"] == "code" and "make_trainer" in "".join(c["source"]))
+    cast = "p.data = p.data.to(torch.float32)"
+    assert "if p.requires_grad and p.dtype != torch.float32:" in code and cast in code
+    assert code.index(cast) < code.index("trainer.train()")  # before the first optimizer step
+    assert "trainable parameter dtypes:" in code  # and it prints what it found
 
 
 def test_the_training_arguments_use_the_names_the_current_libraries_document() -> None:
