@@ -41,10 +41,21 @@ def test_the_notebook_explains_the_expected_pip_warning_and_checks_4_bit_before_
     sources = ["".join(c["source"]) for c in cells() if c["cell_type"] == "code"]
     install = next(s for s in sources if "%pip" in s)
     assert "cudf-cu13" in install and "Restart session" in install and "Disconnect and delete runtime" in install
-    gpu_check = next(s for s in sources if "is_bf16_supported" in s)
+    gpu_check = next(s for s in sources if "get_device_capability" in s)
     assert "bnb.nn.Linear4bit" in gpu_check
     first_download = min(i for i, s in enumerate(sources) if "from_pretrained" in s)
     assert sources.index(gpu_check) < first_download  # the check comes before the model is downloaded
+
+
+def test_precision_follows_the_gpus_compute_capability_not_pytorchs_emulation_answer() -> None:
+    """Found on a real Colab run (a T4): torch.cuda.is_bf16_supported() says yes for a GPU that can only emulate bfloat16, the notebook trained in bf16, and
+    TRL's fused loss kernel stopped with 'gemm input type at::BFloat16 and output type float is only supported for CUDA devices with compute capability 8.0 or
+    higher'. bfloat16 must need compute capability 8 or more, and a T4 must use float16 with TRL's plain float32 fallback."""
+    code = "\n".join(line for c in cells() if c["cell_type"] == "code" for line in "".join(c["source"]).splitlines() if not line.lstrip().startswith("#"))
+    assert "BF16 = major >= 8" in code and "get_device_capability(0)" in code
+    assert "BF16 = torch.cuda.is_bf16_supported()" not in code
+    assert "if not BF16:" in code and "_chunked_logprob._MM_OUT_DTYPE = False" in code
+    assert "compute capability" in code  # the cell prints it, so a wrong choice is visible at once
 
 
 def test_the_training_arguments_use_the_names_the_current_libraries_document() -> None:
