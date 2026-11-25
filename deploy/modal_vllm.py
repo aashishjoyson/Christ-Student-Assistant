@@ -91,7 +91,10 @@ vllm_secret = modal.Secret.from_name("cu-helpdesk-vllm")  # HF_TOKEN, VLLM_API_K
 
 @app.server(
     image=image,
-    gpu="L4",  # 24 GB is enough for a 4B model in 16-bit plus the adapter and a 4k context; "A10" is the other 24 GB option (there is no "A10G" in Modal)
+    # Modal tries these in order. A 4B model in 16-bit plus the adapter and a 4k context fits in 24 GB (L4, A10); the L40S (48 GB) is only a last resort. With a single
+    # type, a request can sit in the queue ("waiting to be scheduled on a GPU_L4 worker") when Modal has no spare capacity. The backups cost more per hour than an L4 (see
+    # modal.com/pricing) but are only used when no L4 is free. There is no "A10G" in Modal.
+    gpu=["L4", "A10", "L40S"],
     scaledown_window=SCALEDOWN,
     startup_timeout=15 * 60,
     volumes={"/root/.cache/huggingface": hf_cache, "/root/.cache/vllm": vllm_cache},

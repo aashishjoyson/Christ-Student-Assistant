@@ -104,7 +104,9 @@ def test_the_server_is_declared_with_only_documented_arguments(monkeypatch: pyte
     server = captured["server"]
     assert captured["app_name"] == "cu-helpdesk-model3"
     assert set(server) <= SERVER_PARAMETERS, set(server) - SERVER_PARAMETERS
-    assert server["gpu"] in GPU_NAMES and server["port"] == 8000 and server["unauthenticated"] is True
+    gpus = server["gpu"] if isinstance(server["gpu"], list) else [server["gpu"]]
+    assert gpus[0] == "L4" and set(gpus) <= GPU_NAMES and len(gpus) >= 2  # the cheapest first, with a backup in case Modal has no free L4
+    assert server["port"] == 8000 and server["unauthenticated"] is True
     assert server["startup_timeout"] >= 10 * 60  # the first start downloads an 8 GB model
     assert len(server["secrets"]) == 1 and set(server["volumes"]) == {"/root/.cache/huggingface", "/root/.cache/vllm"}
 
