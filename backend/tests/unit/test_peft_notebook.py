@@ -35,6 +35,18 @@ def test_the_notebook_says_it_has_not_been_run_and_pins_its_packages() -> None:
     assert "private=True" in text  # the adapter goes to a private repository
 
 
+def test_the_notebook_explains_the_expected_pip_warning_and_checks_4_bit_before_the_download() -> None:
+    """Found on a real Colab run: installing datasets 5.2 (which needs pyarrow 24 or newer) makes pip warn that Colab's cuDF wants pyarrow below 24. The warning
+    is harmless but pyarrow was already loaded, so the session must be restarted; and bitsandbytes must be proven on this GPU before the large download."""
+    sources = ["".join(c["source"]) for c in cells() if c["cell_type"] == "code"]
+    install = next(s for s in sources if "%pip" in s)
+    assert "cudf-cu13" in install and "Restart session" in install and "Disconnect and delete runtime" in install
+    gpu_check = next(s for s in sources if "is_bf16_supported" in s)
+    assert "bnb.nn.Linear4bit" in gpu_check
+    first_download = min(i for i, s in enumerate(sources) if "from_pretrained" in s)
+    assert sources.index(gpu_check) < first_download  # the check comes before the model is downloaded
+
+
 def test_the_training_arguments_use_the_names_the_current_libraries_document() -> None:
     """Checked against the Transformers 5.24 and TRL 1.18 documentation on 2026-11-24: warmup_ratio is no longer a TrainingArguments parameter (a float
     warmup_steps below 1 is the ratio), TRL calls the length max_length, evaluation_strategy became eval_strategy, and from_pretrained takes dtype."""
