@@ -73,6 +73,36 @@ def verify_applicant(session: Session, application_id: str, registered_email: st
     )
 
 
+@dataclass(frozen=True)
+class SyntheticApplicantView:
+    """Demo helper only. The registered address is returned so the route can decide what may be shown (it never leaves the route unmasked
+    unless it is a synthetic example.com address)."""
+
+    application_id: str
+    first_name: str
+    application_status: str
+    interview_status: str | None
+    interview_mode: str | None
+    registered_email: str
+
+
+def list_synthetic_applicants(session: Session) -> list[SyntheticApplicantView]:
+    """The SYNTHETIC records only (is_synthetic = true), so the chat can offer them as ready-made demo logins. A real record is never listed."""
+    out: list[SyntheticApplicantView] = []
+    for applicant in session.execute(select(Applicant).where(Applicant.is_synthetic.is_(True)).order_by(Applicant.application_id)).scalars():
+        application = session.execute(select(Application).where(Application.applicant_id == applicant.id)).scalars().first()
+        interview = session.execute(select(Interview).where(Interview.applicant_id == applicant.id).order_by(Interview.id.desc())).scalars().first()
+        out.append(SyntheticApplicantView(
+            application_id=applicant.application_id,
+            first_name=applicant.full_name.split()[0],
+            application_status=application.status if application else "unknown",
+            interview_status=interview.status if interview else None,
+            interview_mode=interview.mode if interview else None,
+            registered_email=applicant.registered_email,
+        ))
+    return out
+
+
 def applicant_exists(session: Session, applicant_id: int) -> bool:
     return session.get(Applicant, applicant_id) is not None
 

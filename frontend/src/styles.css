@@ -336,3 +336,17 @@ body:has(.admin) { overflow: auto; }
 .pill-failed { background: #fde0e2; color: #a31621; }
 .pill-unsupported { background: #fff1d6; color: #8a5a00; }
 @media (max-width: 640px) { .admin { padding: 1rem 0.7rem 2rem; } .admin table { font-size: 0.78rem; } }
+
+
+/* Sample questions and demo logins (new class names: the older .chip rules are shared with the feedback buttons) */
+.sample-groups, .sample-list { display: flex; flex-direction: column; gap: 0.4rem; text-align: left; }
+.sample-title { margin: 0.55rem 0 0.05rem; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.sample { padding: 0.55rem 0.8rem; text-align: left; font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--navy-800); background: #fff; border: 1.5px solid var(--navy-100); border-radius: 12px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.sample:hover { border-color: var(--navy-700); background: var(--navy-50); }
+.demo-box { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--line); }
+.demo-box h3 { font-size: 0.9rem; color: var(--navy-900); margin-bottom: 0.2rem; }
+.demo-list { display: flex; flex-direction: column; gap: 0.3rem; max-height: 210px; overflow-y: auto; margin: 0.5rem 0; }
+.demo-row { display: grid; grid-template-columns: auto 1fr; gap: 0 0.5rem; text-align: left; padding: 0.4rem 0.6rem; font: inherit; font-size: 0.78rem; background: var(--surface-2); border: 1.5px solid transparent; border-radius: 10px; cursor: pointer; }
+.demo-row small { grid-column: 1 / -1; color: var(--muted); }
+.demo-row:hover, .demo-row.on { border-color: var(--navy-700); background: var(--navy-50); }
+.demo-note { margin: 0.4rem 0 0.6rem; padding: 0.5rem 0.65rem; font-size: 0.78rem; line-height: 1.45; background: var(--gold-soft); border-radius: 10px; color: #4a3a00; }

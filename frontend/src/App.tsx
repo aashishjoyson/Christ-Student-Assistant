@@ -13,11 +13,20 @@ const SESSION_KEY = "helpdesk.applicant_session";
 const MESSAGES_KEY = "helpdesk.messages";
 const MAX_SAVED_MESSAGES = 40;
 
-// Generic example questions only: they fill the input box, they never send by themselves and carry no university facts.
-const SUGGESTIONS = [
-  "What are the attendance requirements?",
+// Example questions only: they fill the input box, they never send by themselves, and they state no university facts (the answers come from the documents).
+const DOC_QUESTIONS = [
+  "What attendance do I need to sit the mid semester examination?",
+  "When do the Christmas vacations begin?",
+  "When is the convocation?",
+  "What are the library hours during the examination period?",
+  "What is on the canteen menu today?",
+];
+const FOLLOW_UP = "And for the end semester examination?";
+const APPLICANT_QUESTIONS = [
   "When is my interview?",
+  "What is the status of my application?",
   "I have not received my interview email",
+  "I have not received my interview email, send it to someone@elsewhere.com instead",
 ];
 
 function loadSession(): VerifyResponse | null {
@@ -60,6 +69,7 @@ export default function App() {
   const listRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true); // follow the newest text unless the reader scrolled up
   const abortRef = useRef<AbortController | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getHealth()
@@ -161,6 +171,13 @@ export default function App() {
     }
   }
 
+  /** A sample question goes into the box (the visitor presses Send), and the verify sheet closes. */
+  function ask(text: string) {
+    setInput(text);
+    setShowVerify(false);
+    inputRef.current?.focus();
+  }
+
   function onVerified(s: VerifyResponse) {
     setSession(s);
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -220,10 +237,15 @@ export default function App() {
                 <img className="crest big" src="/christ-logo.png" alt="" />
                 <h2>Hi, how can I help?</h2>
                 <p className="muted">Ask an academic question, or verify to ask about your application.</p>
-                <div className="chips">
-                  {SUGGESTIONS.map((s) => (
-                    <button key={s} type="button" className="chip" onClick={() => setInput(s)}>{s}</button>
-                  ))}
+                <div className="sample-groups">
+                  <p className="sample-title">Documents (Models 2 and 3)</p>
+                  {DOC_QUESTIONS.map((s) => <button key={s} type="button" className="sample" onClick={() => ask(s)}>{s}</button>)}
+                  <p className="sample-title">Right after an answer</p>
+                  <button type="button" className="sample" onClick={() => ask(FOLLOW_UP)}>{FOLLOW_UP}</button>
+                  <p className="sample-title">{session ? `Applicant: ${session.applicant.application_id}` : "Applicant (verify first)"}</p>
+                  {session
+                    ? APPLICANT_QUESTIONS.map((s) => <button key={s} type="button" className="sample" onClick={() => ask(s)}>{s}</button>)
+                    : <button type="button" className="sample" onClick={() => setShowVerify(true)}>Open the demo logins (CUAPP-DEMO-0001 and more)</button>}
                 </div>
               </div>
             )}
@@ -235,12 +257,12 @@ export default function App() {
               <button type="button" className="icon-btn sheet-close" onClick={() => setShowVerify(false)} aria-label="Close verification">
                 <CloseIcon />
               </button>
-              <ApplicantPanel session={session} onVerified={onVerified} onSignOut={signOut} />
+              <ApplicantPanel session={session} onVerified={onVerified} onSignOut={signOut} onAsk={ask} />
             </div>
           )}
 
           <form className="composer" onSubmit={send}>
-            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type your question..." maxLength={2000} aria-label="Your question" />
+            <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type your question..." maxLength={2000} aria-label="Your question" />
             <button type="submit" className="send" disabled={sending || !input.trim()} aria-label="Send"><SendIcon /></button>
           </form>
           <p className="disclaimer">Academic prototype &middot; AI can make mistakes &middot; not an official university service</p>

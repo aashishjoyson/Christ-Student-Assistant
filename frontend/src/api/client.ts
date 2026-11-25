@@ -1,5 +1,5 @@
 import { parseFrame, splitFrames } from "../lib/sse";
-import type { ChatResponse, FeedbackRating, FeedbackReason, Health, ModelMode, StreamEvent, VerifyResponse } from "./types";
+import type { ChatResponse, DemoApplicant, FeedbackRating, FeedbackReason, Health, ModelMode, StreamEvent, VerifyResponse } from "./types";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
@@ -25,6 +25,9 @@ async function request<T>(path: string, init: JsonInit = {}): Promise<T> {
 }
 
 export const getHealth = () => request<Health>("/api/health");
+
+/** Ready-made synthetic demo logins and what to ask each (off in production). */
+export const getDemoApplicants = () => request<DemoApplicant[]>("/api/demo/applicant/examples");
 
 export function sendChat(args: {
   message: string;

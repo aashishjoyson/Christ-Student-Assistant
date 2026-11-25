@@ -17,6 +17,20 @@ class VerifiedApplicantOut(BaseModel):
     programme: str
 
 
+class DemoApplicantOut(BaseModel):
+    """One ready-made SYNTHETIC login for the demo. `email_prefill` is set only for synthetic example.com addresses; any other address
+    (a real inbox given to the demo applicant) is shown masked in `email_hint` and the visitor has to type it."""
+
+    application_id: str
+    first_name: str
+    scenario: str
+    email_prefill: str | None
+    email_hint: str
+    real_inbox: bool
+    suggestions: list[str]
+    resend_outcome: str
+
+
 class VerifyResponse(BaseModel):
     verified: bool
     session_token: str

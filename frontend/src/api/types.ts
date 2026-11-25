@@ -92,3 +92,15 @@ export type StreamEvent =
 
 export type FeedbackRating = "up" | "down";
 export type FeedbackReason = "wrong_answer" | "not_helpful" | "missing_source" | "too_slow" | "other";
+
+/** A ready-made SYNTHETIC demo login (GET /api/demo/applicant/examples). A real inbox is only ever shown masked. */
+export interface DemoApplicant {
+  application_id: string;
+  first_name: string;
+  scenario: string;
+  email_prefill: string | null;
+  email_hint: string;
+  real_inbox: boolean;
+  suggestions: string[];
+  resend_outcome: string;
+}
