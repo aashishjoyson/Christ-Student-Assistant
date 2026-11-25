@@ -26,7 +26,7 @@ flowchart LR
   graph --> chroma[(Chroma: document chunks)]
   graph -->|Models 1 & 2| hosted[Hosted LLM API<br/>OpenAI default / OpenRouter optional]
   graph -->|Model 3| m3[Model 3 endpoint<br/>vLLM + LoRA adapter]
-  graph -->|resend| mail[Email provider<br/>console default / SMTP opt-in]
+  graph -->|resend| mail[Email provider<br/>console only - SMTP planned, not built]
   sync[Ingestion service] --> drive[(Google Drive folder)]
   sync --> embed[OpenAI embeddings API]
   sync --> chroma

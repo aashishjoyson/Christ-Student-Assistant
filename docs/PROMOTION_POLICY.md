@@ -15,7 +15,7 @@ the reason is written down.*
 | 4 | No **critical** gate regresses against the baseline | `python scripts/compare_eval.py latest` | yes |
 | 5 | A prompt change bumps its version (`app/domain/model_modes.py`, `intent_fallback.py`, ...) and has an ADR entry saying why | review | yes |
 | 6 | The reason and the numbers are written in BUILD_REPORT.md and, for a decision, `docs/DECISIONS.md` | review | yes |
-| 7 | Model 3 / adapter only: it beats its own base model on the same set (the ablation), and passes every safety gate | `--modes rag_peft,rag_peft_base` (Phase 6) | yes |
+| 7 | Model 3 / adapter only: it beats its own base model on the same set (the ablation), and passes every safety gate | `--modes rag,rag_peft,rag_peft_base`, read side by side (not scripted: see section 5) | yes |
 
 ## 2. The gates (`backend/app/eval/compare.py`)
 
@@ -56,6 +56,8 @@ Revert the commit that changed the behaviour and, if the baseline was promoted w
 - **Small sample.** 38 questions; one question is 2.6 points. Do not read a one-question difference as a trend. The settings were tuned on this same set, so the absolute figure is optimistic for unseen questions: **build a held-out set before quoting it**.
 - **Deterministic matching.** A correct answer worded in a way the accepted wordings do not list is counted wrong; a correct fact plus a wrong extra claim is counted right. The optional capped LLM judge for faithfulness is planned, not built.
 - **Live evaluation is manual.** `.github/workflows/eval-gate.yml` runs it from the Actions tab and needs secrets (see the file). It has not been executed yet.
+- **Rule 7 (adapters) is applied by reading the run, not by a script.** `compare_eval.py` compares one mode with a baseline that holds Model 2 only, so `--mode rag_peft` prints INCOMPARABLE, and no Model 3 baseline exists.
+  First application, 2026-11-25 (run `eval-20261125-045830-a4ce98`): the adapter scored 24 of 30 against 28 of 30 for its own base model, so **rule 7 was not met and the adapter was not promoted**. It stays in the app as the fine-tuned path, labelled with what was measured.
 - **Branch protection** is a repository setting and is not applied by code. To make CI a real gate: GitHub > Settings > Branches > add a rule for `main` > require status checks `backend (lint and tests)`, `frontend (build and tests)` and `secret scan` (and, if you work through pull requests, require a pull request before merging).
 
 ## 6. What CI does and does not do

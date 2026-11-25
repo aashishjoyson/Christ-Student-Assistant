@@ -55,7 +55,7 @@ The containers above do not run Model 3: it is served by vLLM on Modal (`deploy/
 - **TLS**: the web container speaks plain HTTP. Put a TLS-terminating proxy or load balancer in front.
 - **Sign-in**: applicant verification is demo-level (application id plus registered email). Production needs the university's single sign-on, and the admin key is a development convenience.
 - **Secrets**: use the platform's secret store instead of an `.env` file.
-- **Images**: the crest and the AI-generated illustrations are for the demo (`docs/LICENSE_NOTES.md`).
+- **Images**: the crest and the AI-generated illustrations are for the demo (`LICENSE_NOTES.md` in the repository root).
 
 ## If the first build fails
 

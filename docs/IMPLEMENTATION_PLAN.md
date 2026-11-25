@@ -5,20 +5,20 @@ Each phase is small enough for one focused Claude Code session and ends **green*
 
 Legend: [x] done in the base repo · [ ] to do
 
-## Status board (2026-11-24)
+## Status board (updated 2026-11-25)
 
 | Phase | Status | Next step / what it needs from you |
 |---|---|---|
 | 0 Foundation | Done | - |
 | 1 Install, tests, Model 1 live | **Done** (committed + pushed, 90 tests, Model 1 verified live) | - |
-| UI restyle (widget on a homepage backdrop) | In progress, **uncommitted** | Real photos still to add (see Phase 4); then commit |
+| UI restyle (widget on a homepage backdrop) | **Done** (committed and pushed) | The page uses AI-generated illustrations and a copied crest (`LICENSE_NOTES.md`): replace them before any public use |
 | 2 RAG over a local folder | **Done, verified live on the real documents** (committed + pushed) | Next: automatic ingestion (poller) and the Drive source = Phase 3 |
-| 3 Google Drive source + automatic polling (M1) | **Built and tested against a fake Drive** (342 tests); live listing connected, folder was empty | Upload documents to the Drive folder, set the `.env` lines in `docs/SETUP_DRIVE.md`, run the first real sync |
+| 3 Google Drive source + automatic polling (M1) | **Done**: the four real documents sync from Drive automatically (verified live); edits, unchanged files and removals are covered by tests against a fake Drive | Keep the poll interval at 300 s outside demos |
 | 4 Frontend completion | Admin page done; debug drawer, Vitest and accessibility pass open | - |
-| 5 Real email (opt-in) | Not started (email stays simulated by design) | Optional: SMTP sandbox (Mailtrap) credentials + allowlist |
-| 6 PEFT/LoRA + Model 3 endpoint | Tooling built (see docs/PEFT_TRAINING_AND_DEPLOYMENT.md); not trained or deployed | Hugging Face account, Colab GPU session, Modal (or HF Endpoints) account |
-| 7 Evaluation, monitoring, validation (**Evidently**) | **7.0, 7.1 (evaluation runner + golden set, M2), 7.3 adversarial suite, 7.5 CI and promotion gates (M3) and 7.6 phrasing/name parity done** (Evidently reports verified in a throwaway venv; not yet in `backend/.venv`) | Next: 7.1 runner (needs `pip install -r backend/requirements-eval.txt`), 7.2, 7.4 (after Phase 2), 7.5 CI |
-| 8 Hardening, CI, packaging | Not started | GitHub Actions CI is specified in 7.5 |
+| 5 Real email (opt-in) | **Not built**: only the simulated (console) provider exists, so no message reaches an inbox; `EMAIL_SEND_ENABLED=true` makes the API refuse to start (`docs/SETUP_EMAIL.md`) | Decide whether to build the SMTP sender; it needs SMTP or test-inbox credentials (a Gmail app password, or a Mailtrap sandbox) |
+| 6 PEFT/LoRA + Model 3 endpoint | **Done**: trained, deployed on Modal and measured (80.0% against 93.3% for Model 2 and for its own base model); not promoted (see docs/PEFT_TRAINING_AND_DEPLOYMENT.md) | Hugging Face account, Colab GPU session, Modal (or HF Endpoints) account |
+| 7 Evaluation, monitoring, validation (**Evidently**) | **Done as built in M2 to M4**: evaluation runner and golden set, RAG evaluation, adversarial suite, CI and promotion gates, monitoring and feedback, phrasing and name parity; Evidently reports come from `run_evaluation.py --evidently` | Open: the optional capped LLM judge, a held-out question set, applicant-side fairness slices (see 7.6) |
+| 8 Hardening, CI, packaging | **Built as M6** (admin page, rate limits, retention, Docker files, CI, model card); not exercised: the Docker build (no engine was running) and the manual live `eval-gate` workflow | Build the containers once and run the workflow once before relying on them |
 
 ## LLMOps roadmap: what we do next, and why
 
@@ -39,7 +39,7 @@ locked dependencies; secret scanning; a CI-safe fake-LLM test harness (342 tests
 | M2 | **Evaluation harness + golden set** (7.1, 7.4) (**built and run live**; judge, held-out set and Model 3 columns remain) | experiment tracking, offline evaluation, reproducibility | `run_evaluation.py` with a run id and a frozen config snapshot (git sha, prompt versions, model ids, embedding model, chunk settings); retrieval hit@k and MRR, citation correctness, refusal correctness, optional capped LLM-judge faithfulness; calibrate `RAG_MAX_DISTANCE`; Evidently reports | 20-30 real questions with expected facts (I draft candidates from your documents; you approve) |
 | M3 | **CI/CD and promotion gates** (7.5) (**built; CI green on GitHub; live gate workflow not yet executed**) | continuous evaluation, regression gates, promotion policy | GitHub Actions: lint + tests + build + secrets + eval gate against a baseline; rules for when a prompt, model or adapter may replace the current one; branch protection | nothing (optional repo secret for a capped live run) |
 | M4 | **Monitoring and feedback loop** (7.2) (**built and checked live; persistent chat history and a dashboard page remain**) | observability, drift, human feedback | thumbs up/down in the chat linked to the trace id; dashboards for p50/p95 latency, time to first word, cost per answer, refusal and no-evidence rate, retrieval-distance drift, intent mix; alert thresholds; opt-in persistent chat history | nothing |
-| M5 | **Fine-tuning operations** (Phase 6) (**tooling built; adapter trained on a Colab T4; Modal deployment and evaluation pending**) | dataset versioning, model registry, ablation, controlled rollout | PEFT dataset builder with eval-leak checks, Colab QLoRA notebook, adapter manifest in a private Hugging Face repo, vLLM endpoint on Modal, Model 3 vs base ablation, promotion through the M3 gate | Hugging Face, Colab and Modal accounts |
+| M5 | **Fine-tuning operations** (Phase 6) (**done: adapter trained on a Colab T4, deployed on Modal and evaluated; it did not beat its base model**) | dataset versioning, model registry, ablation, controlled rollout | PEFT dataset builder with eval-leak checks, Colab QLoRA notebook, adapter manifest in a private Hugging Face repo, vLLM endpoint on Modal, Model 3 vs base ablation, promotion through the M3 gate | Hugging Face, Colab and Modal accounts |
 | M6 | **Hardening and delivery** (Phase 4/8) (**built, except the Docker build and a live check of the eval workflow**) | deployment, security, governance | admin page, Docker, rate limits and access control, retention rules, model card and the final comparison report | - |
 
 **Order:** M1 -> M2 -> M3 -> M4 -> M5 -> M6. M1 can start now: the Drive source is built and tested against a fake Drive service first, so the Google setup runs in
@@ -150,7 +150,7 @@ Acceptance: upload a new file to the folder -> appears in status after sync -> a
 
 ## Phase 4 - Frontend completion
 
-**Done early (2026-11-24):** homepage-widget redesign with the Christ University crest, streamed answers, safe markdown rendering, citation chips, follow-up-aware retrieval, "New chat", conversation restored after a refresh, `npm test` for the parsers. **Still open:** admin page, debug drawer, Vitest + Testing Library, accessibility pass and a mobile check. The homepage photos are AI-generated illustrations (see LICENSE_NOTES.md); swap in licensed or official photos for any public use.
+**Done early (2026-11-24):** homepage-widget redesign with the Christ University crest, streamed answers, safe markdown rendering, citation chips, follow-up-aware retrieval, "New chat", conversation restored after a refresh, `npm test` for the parsers. **Done since:** the admin page (M6). **Still open:** debug drawer, Vitest + Testing Library, accessibility pass and a mobile check. The homepage photos are AI-generated illustrations (see LICENSE_NOTES.md); swap in licensed or official photos for any public use.
 
 - Admin page (`/admin` route or tab): enter admin key (kept in memory only), show counts, last run, per-file table, "Sync now" buttons (local/Drive).
 - Debug drawer for retrieved chunks (Model 2/3) behind a toggle - not shown by default.
@@ -184,6 +184,7 @@ Acceptance: upload a new file to the folder -> appears in status after sync -> a
 - Follow `docs/PEFT_TRAINING_AND_DEPLOYMENT.md`.
 
 Acceptance: health shows Model 3 configured; UI answers with adapter id shown; probe passes.
+Result 2026-11-25: the probe passed (`check_model3_endpoint.py` printed OK) and the evaluation, which uses the app's own graph and Model 3 client, ran without errors; the health endpoint and the browser path for Model 3 were not checked by me.
 
 ---
 
@@ -275,7 +276,7 @@ from `results.csv` for the sections below.
 - [ ] Generation vs context: deterministic fact match, citation hit, refusal correctness on u01-u05; optional `FaithfulnessLLMEval`, `CompletenessLLMEval`,
       `CorrectnessLLMEval` (judge, capped).
 - [ ] Calibrate `RAG_MAX_DISTANCE` from distances of answerable vs unanswerable questions.
-- [ ] Model 2 vs Model 3 vs `rag_peft_base` on identical retrieved context, so differences isolate the generator.
+- [x] Model 2 vs Model 3 vs `rag_peft_base` on identical retrieved context, so differences isolate the generator. Done 2026-11-25: 28/30, 24/30, 28/30 (`docs/MODEL_COMPARISON_REPORT.md`, section 6).
 - Acceptance: a per-mode report and a filled `docs/MODEL_COMPARISON_TEMPLATE.md` (no invented numbers).
 
 **7.5 Pre-deployment validation pipeline** (use-case 4)
@@ -287,6 +288,7 @@ from `results.csv` for the sections below.
       `.github/workflows/eval-gate.yml`: on PRs touching prompts, graph, llm, rag or eval data: fake-LLM deterministic eval + adversarial suite +
       Evidently tests, `report.html` uploaded as an artifact; an optional, manually triggered, capped live run using a repository secret.
 - [ ] A PEFT adapter (Phase 6) is promoted only when these gates pass against the baseline; record the result in `adapter_manifest.json`.
+      The rule is written (`docs/PROMOTION_POLICY.md`, rule 7) but applied by reading the run, not scripted. First application, 2026-11-25: not met, adapter not promoted. The result is recorded in the documents; the manifest, written at training time, was left unchanged.
 
 **7.6 Bias and fairness audit** (use-case 5) - **phrasing and name parity DONE 2026-11-24; applicant-side and answer-quality slices pending**
 - [x] Phrasing slices: 60 messages, 7 styles x 3 requests (formal, informal, typos, non-native, Hinglish, caps/punctuation, emoji) in `data/eval/parity_cases.jsonl`.

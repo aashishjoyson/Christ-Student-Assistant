@@ -1,5 +1,32 @@
 # Build report
 
+## M5 result: Model 3 deployed and measured (2026-11-25)
+
+| Check | Result |
+|---|---|
+| Deployment | `deploy/modal_vllm.py` deployed on Modal (vLLM 0.34.0); an L4 is requested first, with A10 and L40S as backups. The first deploy waited for an L4, hence the backup list; a GPU function needs a payment method on the account. The GPU type that served the evaluation was not recorded |
+| Endpoint check (`check_model3_endpoint.py --wait --ask --manifest`) | OK: the endpoint lists `cu-helpdesk-lora` next to `Qwen/Qwen3-4B-Instruct-2507`, answered a test question, and the manifest matched the dataset hash and prompt version |
+| Evaluation (`run_evaluation.py --modes rag,rag_peft,rag_peft_base --evidently`; run `eval-20261125-045830-a4ce98`; clean tree at `59fd015`; 38 questions; no errors in any mode) | Answered correctly, of 30: **Model 2 28 (93.3%), Model 3 24 (80.0%), the same base model without the adapter 28 (93.3%)** |
+| Safety numbers, all three modes | correct refusals 8 of 8; invented answers 0 of 8; citation numbers valid 100%; proving quote reached the model 100% |
+| Citation hit | Model 2 93.3%, Model 3 73.3%, base 90.0% |
+| Latency p50 / p95 | 1.44 s / 2.14 s, 1.56 s / 2.64 s, 1.50 s / 3.29 s |
+| Gate (`compare_eval.py latest`) | Model 2 of this run passes against the accepted baseline (93.3% against 90%); `--mode rag_peft` is INCOMPARABLE (the baseline holds no Model 3) |
+| Decision | **The adapter is not promoted** (promotion rule 7: it must beat its own base model). It was not retrained, and no prompt or setting was changed after the result (ADR-025) |
+
+**Findings**
+1. The adapter changed what it was trained to change: answers are about half as long as the base model's (13.7 against 29.2 words) with one citation instead of two or three (1.00 against 2.43), close to Model 2's (15.2 words, 1.25), whose model wrote the training answers.
+2. It did not make the answers more accurate. The four questions Model 3 lost against its own base are all calendar dates: g03 a wrong month ("September 23" for 23 December), g05 a refusal with the answer in context, g06 and g09 one of two listed dates. There is no question the other way round (exact two-sided sign test p = 0.125: a hint, not a finding). Model 3 and the base also both fail the two spreadsheet fee questions (g29, g30), as Model 2 does.
+3. The base model's pass on g09 is lenient: it also named only September, and the checker accepts "11 to 13" without a month. Counted strictly the gap is three questions. I did not audit every other pass for the same blind spot.
+4. Two correct Model 3 answers (g01, g04) cited a different document from the expected one; with three of the lost questions this is why citation hit fell from 90.0% to 73.3%.
+5. The safety numbers were already perfect for the base model, so the adapter had nothing to improve there.
+6. **Cause not diagnosed, nothing tuned.** I did not investigate why the adapter said "September" for a December date, and I did not rerun the evaluation looking for a better number: the golden set already tuned the retrieval settings, so every further adjustment against it would make the figure less trustworthy.
+
+**Limits:** one run; 38 questions; Model 3 and the base sample at temperature 0.2 (a default that the run's frozen configuration does not record), so their run-to-run variation is unmeasured (Model 2's was about one question); Model 3's cost is GPU time and is not priced per token (the price table has no Modal entries), so its cost column is empty; the browser path with Model 3 and the Docker build were not exercised by me.
+
+**Housekeeping:** a unit-test fixture committed earlier contained the owner's Hugging Face username and the adapter commit; it now uses a placeholder (the old values remain in git history; neither is a secret).
+
+---
+
 ## M5 follow-up: the adapter is trained (2026-11-25)
 
 | Check | Result |
@@ -16,9 +43,9 @@
 3. Installing `datasets` 5.2 (needs pyarrow 24 or newer) makes pip warn about Colab's cuDF; harmless, but the session must be restarted.
 4. Checking Modal's documentation before the first deploy corrected the file: `A10G` is not a Modal GPU name; **a Modal Server returns 503 during a cold start** (so `check_model3_endpoint.py` gained `--wait`); personal values (adapter repo and commits) now come from a git-ignored file instead of being committed.
 
-**What this does and does not show:** the adapter learned the answer format it was trained on and generalises to held-out examples of the same kind. It says **nothing yet** about answer quality on the golden questions: that needs the endpoint and `run_evaluation.py --modes rag,rag_peft,rag_peft_base`. The validation set is 27 examples, so 0.224 is a rough signal.
+**What this does and does not show:** the adapter learned the answer format it was trained on and generalises to held-out examples of the same kind. At the time it said nothing about answer quality on the golden questions; the evaluation that followed is in the section above. The validation set is 27 examples, so 0.224 is a rough signal.
 
-**Next (needs your Modal account):** `modal setup`, create the secret, `modal deploy deploy/modal_vllm.py`, put the URL and key in `.env`, `python scripts/check_model3_endpoint.py --wait 900 --ask --manifest data/peft/adapter_manifest.json`, then the evaluation.
+**Next:** done; see the section above.
 
 ---
 

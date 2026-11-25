@@ -1,17 +1,21 @@
 # PEFT (LoRA) training and Model 3 deployment (Phase 6)
 
-## Status (2026-11-24): the tooling is built; training and deployment need your accounts
+## Status (2026-11-25): built, trained, deployed and measured; the adapter did not beat its base model
 
 | Step | State | File |
 |---|---|---|
 | 1. Build the training set | **Done**: 371 examples (284 answerable, 87 refusals), train 344 / val 27, about $0.03 | `scripts/build_peft_dataset.py`, `data/peft/dataset_manifest.json` |
 | 2. Train the adapter (Colab T4, QLoRA) | **Done 2026-11-25**: 44 steps in 32 minutes on a Tesla T4; validation loss 0.237 -> 0.224; adapter on a private Hugging Face repo; manifest validated (no errors, no warnings) | `notebooks/train_lora_colab.ipynb`, `data/peft/adapter_manifest.json` |
-| 3. Serve it (Modal + vLLM) | Logic tested with a stand-in for Modal; **not deployed** (needs your Modal account). Configuration comes from the git-ignored `deploy/model3.local.json` | `deploy/modal_vllm.py` |
-| 4. Prove it is a LoRA of the base model | Built and tested with fakes; `--wait 900` waits out a cold start | `scripts/check_model3_endpoint.py --wait 900 --ask --manifest data/peft/adapter_manifest.json` |
-| 5. Measure it against its base and Model 2 | Built (`rag_peft`, `rag_peft_base` modes) | `python scripts/run_evaluation.py --modes rag,rag_peft,rag_peft_base` |
-| 6. Promote through the same gates | Built | `python scripts/compare_eval.py latest --mode rag_peft` |
+| 3. Serve it (Modal + vLLM) | **Deployed 2026-11-25** (vLLM 0.34.0 on Modal; the logic is also tested with a stand-in for Modal). Configuration comes from the git-ignored `deploy/model3.local.json` | `deploy/modal_vllm.py` |
+| 4. Prove it is a LoRA of the base model | **Done**: the check printed OK (the endpoint lists `cu-helpdesk-lora` next to `Qwen/Qwen3-4B-Instruct-2507`); `--wait 900` waits out a cold start | `scripts/check_model3_endpoint.py --wait 900 --ask --manifest data/peft/adapter_manifest.json` |
+| 5. Measure it against its base and Model 2 | **Done 2026-11-25, one run**: Model 3 24 of 30 correct (80.0%); Model 2 28 of 30 (93.3%); the same base model without the adapter 28 of 30 (93.3%). Details: `docs/MODEL_COMPARISON_REPORT.md`, section 6 | `python scripts/run_evaluation.py --modes rag,rag_peft,rag_peft_base` |
+| 6. Promote through the same gates | **Not promoted**: rule 7 of `docs/PROMOTION_POLICY.md` (the adapter must beat its own base model) is not met. The baseline file holds no Model 3, so `compare_eval.py latest --mode rag_peft` prints INCOMPARABLE | `docs/PROMOTION_POLICY.md` |
 
-**What is left for you:** create a Modal account, run `modal setup`, create the secret and `modal deploy` (the commands are at the top of `deploy/modal_vllm.py`); put the printed URL and your key in `.env`; run the checker; run the evaluation. Training is done: the Colab run has been executed and the notebook was corrected three times by it (a pip warning that needs a session restart; bfloat16 chosen wrongly on a T4; TRL 1.18.2 turning LoRA weights into bfloat16).
+**The result, as measured (2026-11-25):** the adapter learned the answer style it was trained on (answers about half as long as the base model's, one citation) and **did not make the answers more accurate**: 24 of 30 correct against 28 of 30 for the same base model without the adapter, and the four lost questions are all calendar dates (`docs/MODEL_COMPARISON_REPORT.md`, section 6).
+It refused 8 of 8 unanswerable questions and invented nothing, as the base model also did. One run, 38 questions, temperature 0.2. **Nothing was retrained or tuned after seeing this** (ADR-025): the golden set had already tuned the retrieval settings, so adjusting the adapter against it would make the number meaningless. A held-out question set and repeated runs are what a fair second attempt would need.
+
+**What is left for you:** decide whether to keep the Modal app deployed (dashboard > Apps > `cu-helpdesk-model3`; with no requests its container stops after 5 minutes and nothing keeps running) and set the workspace spend limit at modal.com/settings/usage. To show Model 3, warm it first: `python scripts/check_model3_endpoint.py --wait 900 --ask --manifest data/peft/adapter_manifest.json`.
+The Colab run found three problems in the notebook, each fixed and pinned by a test (a pip warning that needs a session restart; bfloat16 chosen wrongly on a T4; TRL 1.18.2 turning LoRA weights into bfloat16).
 
 **Differences from the plan below, and why:** the training set is built from the **real documents in the index** (the plan said synthetic documents; the adapter teaches behaviour, not facts, and the repository holds no weights), with a hosted model as the teacher; there are **no scope/safety
 examples** because change requests are handled by routing rules and never reach the model; passages that prove any golden-set answer are **held out completely** and questions close to golden questions are dropped, so Model 3 can be evaluated fairly on the same golden set; the validation
@@ -68,7 +72,7 @@ Shape of `deploy/modal_vllm.py` (Phase 6 writes and tests it):
 ```text
 image: vllm (pinned) + huggingface_hub
 secrets: HF_TOKEN (read private adapter), VLLM_API_KEY
-gpu: L4 or A10G (24 GB) - 4B model in bf16/fp16 fits with room for KV cache
+gpu: L4 first, then A10 and L40S as backups (24 GB holds a 4B model in 16-bit with room for the KV cache; Modal has no "A10G")
 command: vllm serve Qwen/Qwen3-4B-Instruct-2507 --revision <commit>
          --enable-lora --lora-modules cu-helpdesk-lora=<hf-user>/cu-helpdesk-lora
          --max-lora-rank 16 --max-model-len 4096 --api-key $VLLM_API_KEY
@@ -76,7 +80,7 @@ scaledown: a few minutes idle -> zero
 ```
 Then set:
 ```dotenv
-MODEL3_BASE_URL=https://<your-modal-app>.modal.run/v1
+MODEL3_BASE_URL=https://<workspace>--cu-helpdesk-model3-server.<region>.modal.direct/v1
 MODEL3_API_KEY=<VLLM_API_KEY>
 MODEL3_MODEL=cu-helpdesk-lora
 MODEL3_BASE_MODEL_ID=Qwen/Qwen3-4B-Instruct-2507
@@ -86,8 +90,8 @@ MODEL3_ABLATION_MODEL=Qwen/Qwen3-4B-Instruct-2507
 Run `python scripts/check_model3_endpoint.py`: it must find `cu-helpdesk-lora` in `/v1/models` with parent
 `Qwen/Qwen3-4B-Instruct-2507` before you claim Model 3 is PEFT.
 
-**Cost control:** first request after idle takes tens of seconds (cold start; the backend timeout is 90 s). Warm the
-endpoint before demos and evaluation; stop the app afterwards. A full evaluation run is typically well under one
+**Cost control:** a Modal Server answers **503 while a container starts** (minutes the first time, which downloads the base model into a volume), so the app shows an endpoint error until it is ready and never substitutes another model. Warm the
+endpoint before demos and evaluation with `check_model3_endpoint.py --wait 900`; it stops by itself 5 minutes after the last request. A full evaluation run is typically well under one
 GPU-hour - check current GPU prices on the provider page.
 
 ## Alternatives

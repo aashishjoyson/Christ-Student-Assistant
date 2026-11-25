@@ -8,11 +8,14 @@ EMAIL_SEND_ENABLED=false
 ```
 A resend writes the full message to `storage/outbox/sim-<id>.txt`, records a `simulated` event in
 `notification_events`, and the UI says "Demo mode: the email was simulated and not actually delivered."
-This is the right mode for development, tests and most demos.
+This is the right mode for development, tests and demos, and today it is the only mode that works.
 
-## Real sending (Phase 5, opt-in)
+## Real sending (Phase 5, opt-in): NOT BUILT
 
-Real sending needs **all** of:
+**Status (2026-11-25):** the SMTP sender (`app/services/email/smtp.py`) has not been written, so no message reaches any inbox, Gmail included; the only output is the simulated file described above.
+The settings below are the design. Today `EMAIL_PROVIDER=smtp` with `EMAIL_SEND_ENABLED=true` makes the API **refuse to start** ("SMTP sending is implemented in Phase 5"); keep `EMAIL_PROVIDER=console` and `EMAIL_SEND_ENABLED=false`.
+
+Real sending would need **all** of:
 ```dotenv
 EMAIL_PROVIDER=smtp
 EMAIL_SEND_ENABLED=true

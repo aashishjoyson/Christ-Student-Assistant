@@ -107,9 +107,9 @@ def test_no_parent_is_accepted_only_when_the_root_identifies_the_adapter() -> No
 
 def test_a_hugging_face_cache_path_identifies_the_adapter_when_no_parent_is_reported() -> None:
     """vLLM loaded from a local snapshot reports the cache path as root, where the repository appears as user--repo."""
-    cache_path = "/root/.cache/huggingface/hub/models--AashishJoyson--cu-helpdesk-lora/snapshots/caeb79e6341350448b1c51c89208358d55e3966e"
+    cache_path = "/root/.cache/huggingface/hub/models--someone--cu-helpdesk-lora/snapshots/" + "a" * 40
     no_parent = {"id": "cu-helpdesk-lora", "root": cache_path, "parent": None}
-    problems, notes = check_models_payload(payload(BASE_ENTRY, no_parent), "cu-helpdesk-lora", BASE, "AashishJoyson/cu-helpdesk-lora@caeb79e")
+    problems, notes = check_models_payload(payload(BASE_ENTRY, no_parent), "cu-helpdesk-lora", BASE, "someone/cu-helpdesk-lora@aaaaaaa")
     assert problems == [] and "JSON form" in notes[0]
 
 
