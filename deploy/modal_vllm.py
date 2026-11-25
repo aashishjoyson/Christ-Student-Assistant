@@ -12,6 +12,11 @@ so on such a machine run everything as `python -m ...` (python itself is allowed
   python -c "import secrets; print(secrets.token_urlsafe(32))"     # invent the key vLLM will require; keep it for .env
   python -m modal secret create cu-helpdesk-vllm HF_TOKEN=<read token for the PRIVATE adapter repo> VLLM_API_KEY=<the key above>
 
+Billing (checked against Modal's docs on 2026-11-25): Modal requires a payment method on file before it will run any GPU (`modal deploy` stops with "Please add a payment method
+to use L4 GPU functions" otherwise). The free Starter plan includes $30 of compute credit per month, and an L4 is listed at $0.000222 per second (about $0.80 per hour), so
+this project's use fits inside the credit. To be certain you are never charged, open modal.com/settings/usage (Usage & Billing) and set the workspace SPEND LIMIT low
+(it caps what you pay out of pocket after credits; Modal stops workloads that would exceed it). When you are done, stop the app from the dashboard (Apps > cu-helpdesk-model3).
+
 Configuration (not secret, but personal, so it is not committed): the base-model commit, the adapter repository and the adapter commit come from either the environment
 (MODEL3_BASE_REVISION, MODEL3_ADAPTER_REPO, MODEL3_ADAPTER_REVISION) or deploy/model3.local.json (git-ignored):
   {"base_model_revision": "<40 hex>", "adapter_repo": "<hf-user>/cu-helpdesk-lora", "adapter_revision": "<40 hex>"}
