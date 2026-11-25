@@ -106,6 +106,6 @@ The full show list, in order, with what to say and what to expect, is `docs/DEMO
 
 ## Safety defaults
 
-Email is always simulated: the real SMTP sender is not built (see `docs/SETUP_EMAIL.md`), and `EMAIL_SEND_ENABLED=true` makes the API refuse to start. Admin routes are off until
+Email is simulated by default; real sending over SMTP is opt-in (`docs/SETUP_EMAIL.md`) and needs `EMAIL_PROVIDER=smtp`, `EMAIL_SEND_ENABLED=true` and an allowlisted recipient. The live dashboard is at `#/flow` and the preparation guide for presenting this project is `docs/EVALUATION_PREP_GUIDE.md`. Admin routes are off until
 `ADMIN_API_KEY` is changed. Model 3 never falls back to another model. Run `python scripts/check_secrets.py`
 before committing.

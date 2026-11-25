@@ -2,9 +2,10 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AdminPage } from "./components/AdminPage";
+import { FlowPage } from "./components/FlowPage";
 import "./styles.css";
 
-/** Two views and no router library: the chat widget, and the admin page at #/admin. */
+/** Three views and no router library: the chat widget, the admin page at #/admin and the live flow dashboard at #/flow. */
 function Root() {
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
@@ -12,6 +13,7 @@ function Root() {
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
+  if (hash === "#/flow") return <FlowPage />;
   return hash === "#/admin" ? <AdminPage /> : <App />;
 }
 
