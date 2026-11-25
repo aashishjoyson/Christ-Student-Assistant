@@ -11,6 +11,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.graph import routing
 from app.graph.deps import GraphDeps
+from app.graph.flow_nodes import traced
 from app.graph.nodes.academic import AcademicNodes
 from app.graph.nodes.applicant import ApplicantNodes
 from app.graph.nodes.common import CommonNodes
@@ -26,25 +27,29 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
 
     g = StateGraph(HelpdeskState)
 
+    def add_node(name: str, fn):  # type: ignore[no-untyped-def]
+        """Every node runs through `traced`: the node is unchanged, and the live dashboard (#/flow) sees what it did (a no-op without a bus)."""
+        g.add_node(name, traced(name, fn))
+
     # Supervisor / router
-    g.add_node("classify_intent", common.classify_intent)
+    add_node("classify_intent", common.classify_intent)
     # Academic Q&A (three model paths)
-    g.add_node("check_model_available", academic.check_model_available)
-    g.add_node("direct_answer", academic.direct_answer)
-    g.add_node("retrieve_context", academic.retrieve_context)
-    g.add_node("rag_answer", academic.rag_answer)
-    g.add_node("rag_peft_answer", academic.rag_peft_answer)
+    add_node("check_model_available", academic.check_model_available)
+    add_node("direct_answer", academic.direct_answer)
+    add_node("retrieve_context", academic.retrieve_context)
+    add_node("rag_answer", academic.rag_answer)
+    add_node("rag_peft_answer", academic.rag_peft_answer)
     # Applicant services + interview email workflow
-    g.add_node("verify_identity", applicant.verify_identity)
-    g.add_node("fetch_application_status", applicant.fetch_application_status)
-    g.add_node("fetch_interview_details", applicant.fetch_interview_details)
-    g.add_node("check_resend_eligibility", applicant.check_resend_eligibility)
-    g.add_node("send_interview_email", applicant.send_interview_email)
-    g.add_node("record_notification", applicant.record_notification)
-    g.add_node("compose_applicant_response", applicant.compose_applicant_response)
+    add_node("verify_identity", applicant.verify_identity)
+    add_node("fetch_application_status", applicant.fetch_application_status)
+    add_node("fetch_interview_details", applicant.fetch_interview_details)
+    add_node("check_resend_eligibility", applicant.check_resend_eligibility)
+    add_node("send_interview_email", applicant.send_interview_email)
+    add_node("record_notification", applicant.record_notification)
+    add_node("compose_applicant_response", applicant.compose_applicant_response)
     # Templates
-    g.add_node("general_help", common.general_help)
-    g.add_node("safe_fallback", common.safe_fallback)
+    add_node("general_help", common.general_help)
+    add_node("safe_fallback", common.safe_fallback)
 
     g.add_edge(START, "classify_intent")
     g.add_conditional_edges(

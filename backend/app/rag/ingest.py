@@ -22,6 +22,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core import flow
 from app.db.models import IngestedFile, SyncRun
 from app.domain.chunking import chunk_sections
 from app.domain.clock import utcnow
@@ -115,12 +116,18 @@ class IngestionService:
             session.add(run)
             session.commit()
             result = SyncResult(run_id=run.id, status="running")
+            trace = f"sync-{run.id}"
+            where = "drive" if "drive" in self._source.name.lower() else "ingest"
+            flow.emit("ingest", "sync", "start", "ingest" if trigger == "manual" else "poller", f"Sync started ({trigger})", trace_id=trace,
+                      detail={"source": self._source.name, "trigger": trigger, "force": force})
             try:
                 listed = self._source.list_files()
             except Exception as exc:
+                flow.emit("ingest", "list", "error", where, "Could not list the source", trace_id=trace, detail={"error": type(exc).__name__})
                 return self._finish(session, run, result, "failed", f"could not list the source ({type(exc).__name__}: {exc})")
 
             result.files_seen = len(listed)
+            flow.emit("ingest", "list", "end", where, f"Listed {len(listed)} files in the source", trace_id=trace, detail={"files": len(listed)})
             rows = {r.source_file_id: r for r in session.execute(
                 select(IngestedFile).where(IngestedFile.source == self._source.name)).scalars()}
 
@@ -133,6 +140,8 @@ class IngestionService:
                     self._mark_failed(session, file, rows.get(file.source_file_id), self._safe_error(exc))
                     log.warning("ingest failed for %s: %s", file.name, type(exc).__name__)
                 session.commit()
+                flow.emit("ingest", "file", "error" if outcome == "failed" else "end", "ingest", f"{file.name}: {outcome}", trace_id=trace,
+                          detail={"outcome": outcome})
                 counter = f"files_{outcome}"
                 setattr(result, counter, getattr(result, counter) + 1)
 
@@ -150,7 +159,12 @@ class IngestionService:
 
             failed, ok = result.files_failed, result.files_indexed + result.files_skipped + result.files_unsupported
             status = "succeeded" if failed == 0 else ("partial" if ok > 0 else "failed")
-            return self._finish(session, run, result, status, None)
+            finished = self._finish(session, run, result, status, None)
+            flow.emit("ingest", "sync", "error" if status == "failed" else "end", "ingest",
+                      f"Sync {status}: {result.files_indexed} indexed, {result.files_skipped} unchanged, {result.files_deleted} removed, {result.files_failed} failed",
+                      trace_id=trace, detail={"status": status, "indexed": result.files_indexed, "unchanged": result.files_skipped,
+                                              "removed": result.files_deleted, "failed": result.files_failed, "embed_tokens": result.embed_tokens})
+            return finished
 
     def _finish(self, session: Session, run: SyncRun, result: SyncResult, status: str, error: str | None) -> SyncResult:
         run.finished_at = self._now()

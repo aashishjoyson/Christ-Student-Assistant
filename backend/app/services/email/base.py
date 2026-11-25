@@ -19,6 +19,8 @@ class SendResult:
     provider: str
     provider_message_id: str | None = None
     error: str | None = None
+    # (step, milliseconds) pairs such as ("connect", 140), ("login", 310): what the live dashboard shows. Never message text.
+    steps: tuple[tuple[str, int], ...] = ()
 
 
 class EmailProvider(Protocol):

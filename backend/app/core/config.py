@@ -122,6 +122,10 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: SecretStr | None = None
     smtp_use_starttls: bool = True
+    smtp_timeout_seconds: float = Field(15.0, gt=0, le=120)  # one attempt, then it is reported as failed
+    # Demo only: the address that the seed script / scripts/set_demo_email.py gives the demo applicant CUAPP-DEMO-0001, so the interview email
+    # can really arrive in a test inbox. Blank keeps the synthetic address from data/synthetic_applicants.csv. Never committed (it lives in .env).
+    demo_applicant_email: str = ""
     notification_cooldown_minutes: int = 15
     notification_max_per_day: int = 3
     outbox_dir: Path = STORAGE_DIR / "outbox"
@@ -130,6 +134,9 @@ class Settings(BaseSettings):
     trace_dir: Path = STORAGE_DIR / "traces"
     trace_include_text: bool = False
     mlflow_tracking_uri: str = ""  # blank = MLflow disabled; e.g. sqlite:///storage/mlflow.db
+    # Live flow dashboard (#/flow): what each service is doing, kept in memory only. No message text is ever put in an event, and the stream needs the admin key.
+    flow_events_enabled: bool = True
+    flow_buffer_events: int = Field(1000, ge=100, le=20000)
 
     # --- Admin (local development only) ---
     admin_api_key: SecretStr | None = None
@@ -144,6 +151,18 @@ class Settings(BaseSettings):
         if value is None or value.is_absolute():
             return value
         return (REPO_ROOT / value).resolve()
+
+    @field_validator("demo_applicant_email", mode="after")
+    @classmethod
+    def _demo_email_is_one_address(cls, value: str) -> str:
+        from app.domain.notification_policy import (
+            is_valid_email,  # imported here so this module stays importable on its own
+        )
+
+        value = value.strip()
+        if value and not is_valid_email(value):
+            raise ValueError("DEMO_APPLICANT_EMAIL must be one plain email address, or blank.")
+        return value
 
     # ---------- derived helpers ----------
     @property

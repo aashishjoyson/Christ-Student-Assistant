@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.core import flow
 from app.domain.documents import RetrievedChunk
 from app.rag.embeddings import Embedder
 from app.rag.rerank import rerank
@@ -25,8 +26,12 @@ class ChromaRetriever:
     def retrieve(self, query: str, top_k: int) -> list[RetrievedChunk]:
         if not query.strip():
             return []
-        vector = self._embedder.embed([query]).vectors[0]
+        with flow.span("embed_query", "embedder", "Turned the question into a vector", model=self._embedder.model):
+            vector = self._embedder.embed([query]).vectors[0]
         wanted = max(top_k, self._pool) if self._lexical_weight > 0 else top_k
+        with flow.span("vector_search", "chroma", "Searched the index by meaning", wanted=wanted) as info:
+            hits = list(self._store.query(vector, wanted))
+            info["candidates"] = len(hits)
         chunks = [
             RetrievedChunk(
                 chunk_id=hit.id,
@@ -38,9 +43,12 @@ class ChromaRetriever:
                 source_url=hit.metadata.get("source_url"),
                 distance=hit.distance,
             )
-            for hit in self._store.query(vector, wanted)
+            for hit in hits
         ]
-        return rerank(query, chunks, top_k, self._lexical_weight) if self._lexical_weight > 0 else chunks
+        if self._lexical_weight > 0:
+            with flow.span("rerank", "rerank", "Re-ranked by the rare words in the question", keep=top_k, lexical_weight=self._lexical_weight):
+                chunks = rerank(query, chunks, top_k, self._lexical_weight)
+        return chunks
 
     def describe(self) -> dict[str, object]:
         return {"backend": "chroma", "ready": self.ready, "chunks": self._store.count(),

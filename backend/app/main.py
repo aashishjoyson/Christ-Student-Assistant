@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import __version__
-from app.api import routes_admin, routes_applicant, routes_chat, routes_feedback, routes_health
+from app.api import routes_admin, routes_applicant, routes_chat, routes_feedback, routes_flow, routes_health
 from app.container import AppContainer, build_container
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -45,7 +45,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     async def _chat_error(_: Request, exc: ChatError) -> JSONResponse:
         return JSONResponse(status_code=exc.http_status, content={"error": {"code": exc.code, "message": exc.message}})
 
-    for module in (routes_health, routes_chat, routes_feedback, routes_applicant, routes_admin):
+    for module in (routes_health, routes_chat, routes_feedback, routes_applicant, routes_admin, routes_flow):
         app.include_router(module.router)
     return app
 

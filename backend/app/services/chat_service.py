@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from app.core import flow
 from app.domain.intents import Intent
 from app.domain.masking import hash_identifier
 from app.graph.state import new_turn_input
@@ -57,10 +58,28 @@ class ChatService:
         if self._history is not None and final_state.get("history"):
             self._history.save(str(conversation_id), list(final_state["history"]))
 
+    @staticmethod
+    def _flow_start(request: ChatRequest, message_id: str, applicant_token: str | None, stream: bool) -> None:
+        flow.emit("request", "request", "start", "api", "Received a chat message", trace_id=message_id,
+                  detail={"model_mode": request.model_mode, "stream": stream, "message_chars": len(request.message),
+                          "applicant_session": bool(applicant_token)})
+
+    @staticmethod
+    def _flow_end(out: dict[str, Any], message_id: str, latency_ms: int) -> None:
+        llm, error = out.get("llm") or {}, out.get("error") or {}
+        flow.emit("step", "trace", "end", "traces", "Wrote one text-free trace line (model, tokens, cost, distances, path)", trace_id=message_id)
+        flow.emit("request", "request", "error" if error else "end", "api", "The turn failed" if error else "Answered", ms=latency_ms,
+                  trace_id=message_id,
+                  detail={"intent": out.get("intent"), "handled_by": (out.get("handled_by") or {}).get("kind"), "llm_called": bool(llm.get("called")),
+                          "first_token_ms": llm.get("first_token_ms"), "input_tokens": llm.get("input_tokens"),
+                          "output_tokens": llm.get("output_tokens"), "est_cost_usd": llm.get("est_cost_usd"),
+                          "path": out.get("node_path", []), "error": error.get("code")})
+
     def handle(self, request: ChatRequest, applicant_token: str | None) -> ChatResponse:
         conversation_id: UUID = request.conversation_id or uuid.uuid4()
         message_id = request.client_message_id or uuid.uuid4().hex
         started = time.perf_counter()
+        self._flow_start(request, message_id, applicant_token, stream=False)
         out: dict[str, Any] = self._graph.invoke(
             self._turn_input(conversation_id, message_id, request, applicant_token),
             config={"configurable": {"thread_id": str(conversation_id)}},
@@ -68,6 +87,7 @@ class ChatService:
         self._remember(conversation_id, out)
         latency_ms = int((time.perf_counter() - started) * 1000)
         self._tracer.record(self._trace(out, request, conversation_id, message_id, latency_ms))
+        self._flow_end(out, message_id, latency_ms)
 
         error = out.get("error")
         if error:
@@ -84,6 +104,7 @@ class ChatService:
         message_id = request.client_message_id or uuid.uuid4().hex
         started = time.perf_counter()
         state: dict[str, Any] = {}
+        self._flow_start(request, message_id, applicant_token, stream=True)
         try:
             for mode, payload in self._graph.stream(
                 self._turn_input(conversation_id, message_id, request, applicant_token, stream=True),
@@ -96,12 +117,14 @@ class ChatService:
                     state = payload
         except Exception as exc:  # an unexpected failure must end the stream cleanly, not hang the client
             log.exception("streaming turn failed")
+            flow.emit("request", "request", "error", "api", "The turn failed unexpectedly", trace_id=message_id, detail={"error": type(exc).__name__})
             yield {"type": "error", "code": "internal_error", "message": "The assistant hit an unexpected error.",
                    "http_status": 500, "detail": type(exc).__name__}
             return
         self._remember(conversation_id, state)
         latency_ms = int((time.perf_counter() - started) * 1000)
         self._tracer.record(self._trace(state, request, conversation_id, message_id, latency_ms))
+        self._flow_end(state, message_id, latency_ms)
         error = state.get("error")
         if error:
             yield {"type": "error", "code": str(error["code"]), "message": str(error["message"]),

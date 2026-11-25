@@ -11,7 +11,9 @@ from typing import Any
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core import flow
 from app.core.config import Settings
+from app.core.flow import FlowBus
 from app.core.rate_limit import SlidingWindowLimiter
 from app.db.session import init_db, make_engine, make_session_factory
 from app.graph.builder import build_graph
@@ -48,6 +50,7 @@ class AppContainer:
     drive_ingestion: IngestionService | None = None  # Google Drive; None when not configured or its credentials are unusable
     drive_error: str | None = None  # why Drive is unavailable (safe to show: no credentials, no file contents)
     pollers: list[IngestionPoller] = field(default_factory=list)  # started by the app lifespan
+    flow: FlowBus | None = None  # live events for the #/flow dashboard (None = switched off)
 
 
 @dataclass
@@ -111,6 +114,8 @@ def build_container(
         )
     else:
         deps = deps_override
+    bus = FlowBus(settings.flow_buffer_events) if settings.flow_events_enabled else None
+    flow.install(bus)
     graph = build_graph(deps)
     tracer = TraceRecorder(settings.trace_dir, settings.trace_include_text)
     return AppContainer(
@@ -129,4 +134,5 @@ def build_container(
         drive_ingestion=drive,
         drive_error=drive_error,
         pollers=pollers,
+        flow=bus,
     )

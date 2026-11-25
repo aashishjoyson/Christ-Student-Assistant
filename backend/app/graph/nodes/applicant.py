@@ -200,6 +200,7 @@ class ApplicantNodes:
             provider=result.provider,
             provider_message_id=result.provider_message_id,
             send_error=result.error,
+            send_steps=[list(item) for item in result.steps],
         )
         return {"notification": notification, "node_path": path}
 
