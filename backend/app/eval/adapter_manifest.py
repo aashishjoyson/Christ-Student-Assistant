@@ -7,12 +7,43 @@ it was trained on (hash), to the prompt format the app serves (version), and to 
 from __future__ import annotations
 
 import re
+import time
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
 REQUIRED_FIELDS = ("base_model_id", "base_model_revision", "dataset_sha256", "lora", "epochs", "trained_at", "prompt_version")
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+class RetryableError(Exception):
+    """The endpoint is not ready yet (a cold start: Modal answers 503 until vLLM is up; a connection that is refused or times out). Worth trying again."""
+
+
+class EndpointNotReady(Exception):
+    """The endpoint still had not answered when the waiting time ran out."""
+
+
+def wait_for_endpoint(
+    fetch: Callable[[], Any], wait_seconds: float, interval: float = 10.0, clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep, on_wait: Callable[[int, float], None] | None = None,
+) -> Any:
+    """Call `fetch` until it succeeds. Only RetryableError is retried (any other error, such as a rejected key, is raised at once). With wait_seconds=0 it
+    is a single attempt. Raises EndpointNotReady when the deadline passes. `clock` and `sleep` are injectable so the behaviour is tested without waiting."""
+    deadline = clock() + wait_seconds
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return fetch()
+        except RetryableError as exc:
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise EndpointNotReady(f"no answer after {attempt} attempt(s): {exc}") from exc
+            if on_wait is not None:
+                on_wait(attempt, remaining)
+            sleep(min(interval, remaining))
 
 
 def validate_manifest(manifest: dict[str, Any], *, current_prompt_version: str, dataset_manifest: dict[str, Any] | None = None,
@@ -73,7 +104,7 @@ def check_models_payload(payload: dict[str, Any], adapter_name: str, base_model_
         notes.append(f"'{adapter_name}' is reported as a LoRA of '{base_model_id}' (parent matches)")
     elif parent:
         problems.append(f"'{adapter_name}' has parent '{parent}', not the configured base '{base_model_id}'")
-    elif adapter_repo and adapter_repo.split("@")[0] in root:
+    elif adapter_repo and (adapter_repo.split("@")[0] in root or adapter_repo.split("@")[0].replace("/", "--") in root):  # a Hugging Face cache path says user--repo
         notes.append(f"'{adapter_name}' reports no parent, but its root points at the adapter artifact '{root}'. Use the JSON form of --lora-modules "
                      "with base_model_name so the server states the parent.")
     else:

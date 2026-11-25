@@ -74,7 +74,7 @@ and watched while it runs.** Each act below shows one link in that chain. Every 
 ## Act 8: Model 3, the fine-tuned path (3 min)
 
 1. `data\peft\dataset_manifest.json`: 371 training examples, built from the real documents with a hosted model as teacher; every number checked against the cited passage; **461 passages that prove an evaluation answer were held out** so Model 3 can be tested fairly.
-2. The Colab notebook (`notebooks\train_lora_colab.ipynb`) and the serving file (`deploy\modal_vllm.py`).
+2. The Colab notebook (`notebooks\train_lora_colab.ipynb`) and `data\peft\adapter_manifest.json`: trained on a Colab T4 in 32 minutes, 44 steps, validation loss 0.237 to 0.224, tied to the dataset by its hash. Say what it taught: citing `[n]` and refusing correctly, not facts. The serving file is `deploy\modal_vllm.py`.
 3. If trained and deployed: `python scripts/check_model3_endpoint.py --ask --manifest data/peft/adapter_manifest.json` (proves it is a LoRA of the configured base model, tied to this dataset and this prompt version), then `python scripts/run_evaluation.py --modes rag,rag_peft,rag_peft_base`: Model 2 against Model 3 against the same base model without the adapter, which isolates what the adapter did.
 4. If not: say plainly that the tooling is built and tested with fakes, and the training run needs the Hugging Face, Colab and Modal accounts.
 

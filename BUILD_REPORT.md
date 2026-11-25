@@ -1,5 +1,27 @@
 # Build report
 
+## M5 follow-up: the adapter is trained (2026-11-25)
+
+| Check | Result |
+|---|---|
+| Training run (Colab, Tesla T4, Python 3.13.16, torch 2.14.1+cu130) | **44 steps, 2 epochs, 32 min 04 s**; training loss 0.348 -> 0.192; validation loss 0.237 -> 0.224; mean token accuracy 92.3% -> 92.7% on the held-out answers |
+| Adapter | LoRA r=16, alpha 32, dropout 0.05 on all seven projection layers; base `Qwen/Qwen3-4B-Instruct-2507` at commit `cdbee75f...`; adapter on a private Hugging Face repo at commit `caeb79e6...`; trained on answers only (`assistant_only_loss`) |
+| Manifest check (`validate_manifest` against the built dataset, the current prompt version and the configured base) | **no errors, no warnings**: the dataset hash matches, prompt version `rag-v2` matches, the base revision is a pinned commit |
+| Sample from the held-out set | the model's answer matched the reference in meaning, format and citation (`[4]`) |
+| Tests | 7 new for the Modal file's logic run against a stand-in for `modal`, 5 for the endpoint wait logic |
+
+**Findings (the Colab run found three bugs in my notebook; each was fixed and pinned by a test)**
+1. `torch.cuda.is_bf16_supported()` answers yes on a T4 (emulated bfloat16), so the notebook trained in bf16 and TRL's loss kernel stopped. Precision now follows the GPU's compute capability (8 or more = bf16, else fp16).
+2. TRL 1.18.2's `SFTTrainer.__init__` converts every trainable weight of a 4-bit model to bfloat16 whatever the precision setting (found by reading its source), so the fp16 gradient scaler failed at the first optimizer step. The notebook now returns the LoRA weights to float32 before training and prints their dtypes. A kernel patch tried first was not needed and was removed.
+3. Installing `datasets` 5.2 (needs pyarrow 24 or newer) makes pip warn about Colab's cuDF; harmless, but the session must be restarted.
+4. Checking Modal's documentation before the first deploy corrected the file: `A10G` is not a Modal GPU name; **a Modal Server returns 503 during a cold start** (so `check_model3_endpoint.py` gained `--wait`); personal values (adapter repo and commits) now come from a git-ignored file instead of being committed.
+
+**What this does and does not show:** the adapter learned the answer format it was trained on and generalises to held-out examples of the same kind. It says **nothing yet** about answer quality on the golden questions: that needs the endpoint and `run_evaluation.py --modes rag,rag_peft,rag_peft_base`. The validation set is 27 examples, so 0.224 is a rough signal.
+
+**Next (needs your Modal account):** `modal setup`, create the secret, `modal deploy deploy/modal_vllm.py`, put the URL and key in `.env`, `python scripts/check_model3_endpoint.py --wait 900 --ask --manifest data/peft/adapter_manifest.json`, then the evaluation.
+
+---
+
 ## M5 and M6 - fine-tuning tooling, operations, admin page (2026-11-24)
 
 | Check | Result |

@@ -6,7 +6,13 @@ import copy
 
 import pytest
 
-from app.eval.adapter_manifest import check_models_payload, validate_manifest
+from app.eval.adapter_manifest import (
+    EndpointNotReady,
+    RetryableError,
+    check_models_payload,
+    validate_manifest,
+    wait_for_endpoint,
+)
 
 BASE = "Qwen/Qwen3-4B-Instruct-2507"
 GOOD = {
@@ -97,6 +103,81 @@ def test_no_parent_is_accepted_only_when_the_root_identifies_the_adapter() -> No
     unknown = {**no_parent, "root": "/models/unrelated-artifact"}
     problems, _ = check_models_payload(payload(BASE_ENTRY, unknown), "cu-helpdesk-lora", BASE, "me/cu-helpdesk-lora@abc")
     assert len(problems) == 1 and "cannot confirm" in problems[0]
+
+
+def test_a_hugging_face_cache_path_identifies_the_adapter_when_no_parent_is_reported() -> None:
+    """vLLM loaded from a local snapshot reports the cache path as root, where the repository appears as user--repo."""
+    cache_path = "/root/.cache/huggingface/hub/models--AashishJoyson--cu-helpdesk-lora/snapshots/caeb79e6341350448b1c51c89208358d55e3966e"
+    no_parent = {"id": "cu-helpdesk-lora", "root": cache_path, "parent": None}
+    problems, notes = check_models_payload(payload(BASE_ENTRY, no_parent), "cu-helpdesk-lora", BASE, "AashishJoyson/cu-helpdesk-lora@caeb79e")
+    assert problems == [] and "JSON form" in notes[0]
+
+
+class FakeClock:
+    """Time that only moves when something sleeps, so the waiting logic is tested instantly."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def clock(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def test_waiting_returns_at_once_when_the_endpoint_is_up() -> None:
+    t = FakeClock()
+    assert wait_for_endpoint(lambda: {"ok": 1}, 600, clock=t.clock, sleep=t.sleep) == {"ok": 1} and t.sleeps == []
+
+
+def test_a_cold_start_is_retried_until_the_endpoint_answers() -> None:
+    t = FakeClock()
+    answers = iter([RetryableError("HTTP 503"), RetryableError("HTTP 503"), RetryableError("ConnectError"), {"data": []}])
+    seen: list[tuple[int, float]] = []
+
+    def fetch() -> dict:
+        item = next(answers)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    result = wait_for_endpoint(fetch, 600, interval=10, clock=t.clock, sleep=t.sleep, on_wait=lambda attempt, left: seen.append((attempt, left)))
+    assert result == {"data": []} and t.sleeps == [10, 10, 10]
+    assert [a for a, _ in seen] == [1, 2, 3] and seen[0][1] == 600  # it reports each attempt and how long it will still wait
+
+
+def test_waiting_gives_up_at_the_deadline_and_never_sleeps_past_it() -> None:
+    t = FakeClock()
+    calls: list[int] = []
+
+    def never_ready() -> dict:
+        calls.append(1)
+        raise RetryableError("HTTP 503")
+
+    with pytest.raises(EndpointNotReady, match="HTTP 503"):
+        wait_for_endpoint(never_ready, 25, interval=10, clock=t.clock, sleep=t.sleep)
+    assert t.sleeps == [10, 10, 5] and t.now == 25 and len(calls) == 4
+
+
+def test_a_rejected_key_is_not_retried_and_zero_means_one_attempt() -> None:
+    t = FakeClock()
+
+    def wrong_key() -> dict:
+        raise PermissionError("HTTP 401")
+
+    with pytest.raises(PermissionError):
+        wait_for_endpoint(wrong_key, 600, clock=t.clock, sleep=t.sleep)
+    assert t.sleeps == []
+
+    def cold() -> dict:
+        raise RetryableError("HTTP 503")
+
+    with pytest.raises(EndpointNotReady):
+        wait_for_endpoint(cold, 0, clock=t.clock, sleep=t.sleep)
+    assert t.sleeps == []
 
 
 def test_an_adapter_named_like_the_base_model_is_flagged() -> None:

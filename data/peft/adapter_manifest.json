@@ -1,0 +1,46 @@
+{
+  "base_model_id": "Qwen/Qwen3-4B-Instruct-2507",
+  "base_model_revision": "cdbee75f17c01a7cc42f958dc650907174af0554",
+  "dataset_sha256": "9c1693b38a641c9148f2329208375a1f33ac3f9a5c2c8f3638aefe1ebbee8dbf",
+  "lora": {
+    "r": 16,
+    "alpha": 32,
+    "dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  },
+  "epochs": 2,
+  "learning_rate": 0.0002,
+  "seed": 7,
+  "max_length": 2048,
+  "trained_at": "2026-11-25T04:01:24.910828+00:00",
+  "prompt_version": "rag-v2",
+  "assistant_only_loss": true,
+  "eval_loss": 0.22439463436603546,
+  "examples": {
+    "total": 371,
+    "answerable": 284,
+    "refusal": 87,
+    "train": 344,
+    "val": 27
+  },
+  "golden_set_sha256": "2b966fdd80ea68ed44cddfea0cf51a08dd6d8a1ea6086509f54096746dbc539c",
+  "libraries": {
+    "trl": "1.18.2",
+    "peft": "0.22.0",
+    "transformers": "5.24.0",
+    "bitsandbytes": "0.50.2",
+    "accelerate": "1.16.0",
+    "datasets": "5.2.0",
+    "torch": "2.14.1+cu130"
+  },
+  "hardware": "Tesla T4",
+  "python": "3.13.16"
+}

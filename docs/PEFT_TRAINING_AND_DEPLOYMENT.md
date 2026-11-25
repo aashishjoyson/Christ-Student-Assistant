@@ -5,14 +5,13 @@
 | Step | State | File |
 |---|---|---|
 | 1. Build the training set | **Done**: 371 examples (284 answerable, 87 refusals), train 344 / val 27, about $0.03 | `scripts/build_peft_dataset.py`, `data/peft/dataset_manifest.json` |
-| 2. Train the adapter (Colab T4, QLoRA) | **Written from the TRL/PEFT docs, not run** (no GPU here) | `notebooks/train_lora_colab.ipynb` |
-| 3. Serve it (Modal + vLLM) | **Written from the Modal/vLLM docs, not deployed** | `deploy/modal_vllm.py` |
-| 4. Prove it is a LoRA of the base model | Built and tested with fakes | `scripts/check_model3_endpoint.py --ask --manifest data/peft/adapter_manifest.json` |
+| 2. Train the adapter (Colab T4, QLoRA) | **Done 2026-11-25**: 44 steps in 32 minutes on a Tesla T4; validation loss 0.237 -> 0.224; adapter on a private Hugging Face repo; manifest validated (no errors, no warnings) | `notebooks/train_lora_colab.ipynb`, `data/peft/adapter_manifest.json` |
+| 3. Serve it (Modal + vLLM) | Logic tested with a stand-in for Modal; **not deployed** (needs your Modal account). Configuration comes from the git-ignored `deploy/model3.local.json` | `deploy/modal_vllm.py` |
+| 4. Prove it is a LoRA of the base model | Built and tested with fakes; `--wait 900` waits out a cold start | `scripts/check_model3_endpoint.py --wait 900 --ask --manifest data/peft/adapter_manifest.json` |
 | 5. Measure it against its base and Model 2 | Built (`rag_peft`, `rag_peft_base` modes) | `python scripts/run_evaluation.py --modes rag,rag_peft,rag_peft_base` |
 | 6. Promote through the same gates | Built | `python scripts/compare_eval.py latest --mode rag_peft` |
 
-**What you do** (about an hour of clicking, plus Colab time): create a Hugging Face account and a write token; open the notebook in Colab with a T4; upload `data/peft/train.jsonl`, `val.jsonl` and `dataset_manifest.json`; run it; create a Modal account, run the two
-`modal secret` and `modal deploy` commands in `deploy/modal_vllm.py`; put the printed values in `.env`; run the checker; run the evaluation. Nothing in this repository can do those steps for you, and none of them has been run.
+**What is left for you:** create a Modal account, run `modal setup`, create the secret and `modal deploy` (the commands are at the top of `deploy/modal_vllm.py`); put the printed URL and your key in `.env`; run the checker; run the evaluation. Training is done: the Colab run has been executed and the notebook was corrected three times by it (a pip warning that needs a session restart; bfloat16 chosen wrongly on a T4; TRL 1.18.2 turning LoRA weights into bfloat16).
 
 **Differences from the plan below, and why:** the training set is built from the **real documents in the index** (the plan said synthetic documents; the adapter teaches behaviour, not facts, and the repository holds no weights), with a hosted model as the teacher; there are **no scope/safety
 examples** because change requests are handled by routing rules and never reach the model; passages that prove any golden-set answer are **held out completely** and questions close to golden questions are dropped, so Model 3 can be evaluated fairly on the same golden set; the validation

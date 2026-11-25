@@ -1,11 +1,12 @@
 """Check the Model 3 endpoint (vLLM with the LoRA adapter) before anyone claims "Model 3 is PEFT".
 
-  python scripts/check_model3_endpoint.py            # what does the endpoint serve? is the adapter a LoRA of the configured base model?
-  python scripts/check_model3_endpoint.py --ask      # also send one tiny question to the adapter and one to the base model (a fraction of a cent)
+  python scripts/check_model3_endpoint.py --wait 900     # a cold endpoint answers 503 for minutes: keep trying (every 10 s) until it is up, then check
+  python scripts/check_model3_endpoint.py                # one attempt: what does the endpoint serve? is the adapter a LoRA of the configured base model?
+  python scripts/check_model3_endpoint.py --ask          # also send one tiny question to the adapter and one to the base model (a fraction of a cent)
   python scripts/check_model3_endpoint.py --manifest data/peft/adapter_manifest.json   # also validate the adapter's manifest against the dataset and the app
 
 Reads MODEL3_BASE_URL, MODEL3_API_KEY, MODEL3_MODEL, MODEL3_BASE_MODEL_ID and MODEL3_ADAPTER_ID from .env. The key is only sent to that endpoint.
-Exit codes: 0 everything confirmed; 1 a problem was found; 2 Model 3 is not configured or the endpoint cannot be reached.
+Exit codes: 0 everything confirmed; 1 a problem was found; 2 Model 3 is not configured, the key was rejected, or the endpoint did not answer in time.
 """
 
 from __future__ import annotations
@@ -22,14 +23,25 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 from app.core.config import get_settings  # noqa: E402
 from app.domain.model_modes import PROMPT_VERSIONS, ModelMode  # noqa: E402
-from app.eval.adapter_manifest import check_models_payload, validate_manifest  # noqa: E402
+from app.eval.adapter_manifest import (  # noqa: E402
+    EndpointNotReady,
+    RetryableError,
+    check_models_payload,
+    validate_manifest,
+    wait_for_endpoint,
+)
+
+
+class KeyRejected(Exception):
+    pass
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--ask", action="store_true")
     parser.add_argument("--manifest", type=Path)
-    parser.add_argument("--timeout", type=float, default=120.0, help="seconds; a cold start takes tens of seconds")
+    parser.add_argument("--wait", type=float, default=0.0, help="keep trying for this many seconds while the endpoint starts (0 = one attempt)")
+    parser.add_argument("--timeout", type=float, default=120.0, help="seconds to wait for each answer once the endpoint is up")
     args = parser.parse_args()
 
     s = get_settings()
@@ -47,13 +59,32 @@ def main() -> int:
     except ImportError:
         pass
 
+    def fetch() -> dict:
+        try:
+            response = httpx.get(f"{base_url}/models", headers=headers, timeout=30.0)
+        except httpx.TransportError as exc:  # refused, reset or timed out: the container is still starting
+            raise RetryableError(type(exc).__name__) from exc
+        if response.status_code in (502, 503, 504):  # a Modal Server answers 503 while a container starts
+            raise RetryableError(f"HTTP {response.status_code}")
+        if response.status_code in (401, 403):
+            raise KeyRejected(f"HTTP {response.status_code}")
+        response.raise_for_status()
+        return response.json()  # type: ignore[no-any-return]
+
+    def say_waiting(attempt: int, remaining: float) -> None:
+        print(f"  not up yet (attempt {attempt}); still waiting up to {int(remaining)} s ...", flush=True)
+
     problems: list[str] = []
     try:
-        response = httpx.get(f"{base_url}/models", headers=headers, timeout=args.timeout)
-        response.raise_for_status()
-        payload = response.json()
+        payload = wait_for_endpoint(fetch, args.wait, on_wait=say_waiting)
+    except EndpointNotReady as exc:
+        print(f"The endpoint did not answer at {base_url}/models ({exc}). A cold start can take several minutes the first time: run again with --wait 900.", file=sys.stderr)
+        return 2
+    except KeyRejected as exc:
+        print(f"The endpoint rejected the key ({exc}). MODEL3_API_KEY in .env must equal the VLLM_API_KEY stored in the Modal secret.", file=sys.stderr)
+        return 2
     except (httpx.HTTPError, ValueError) as exc:
-        print(f"Could not read {base_url}/models ({type(exc).__name__}). A cold endpoint can take a minute: try again.", file=sys.stderr)
+        print(f"Could not read {base_url}/models ({type(exc).__name__}).", file=sys.stderr)
         return 2
     found, notes = check_models_payload(payload, s.model3_model, s.model3_base_model_id, s.model3_adapter_id)
     problems += found

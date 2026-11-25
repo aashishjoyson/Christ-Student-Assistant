@@ -46,6 +46,10 @@ docker volume ls                                            # find the volume (i
 docker run --rm -v <that-volume>:/data -v ${PWD}:/backup alpine tar czf /backup/storage-backup.tgz -C /data .   # back it up
 ```
 
+## Model 3 (the fine-tuned model) runs elsewhere
+
+The containers above do not run Model 3: it is served by vLLM on Modal (`deploy/modal_vllm.py`). A Modal Server answers **503 while it starts** (several minutes the first time), so the app shows an endpoint error for Model 3 until it is warm and never substitutes another model. Warm it before a demo or evaluation with `python scripts/check_model3_endpoint.py --wait 900`; it stops by itself after 5 idle minutes.
+
 ## Before real use (not done, on purpose)
 
 - **TLS**: the web container speaks plain HTTP. Put a TLS-terminating proxy or load balancer in front.

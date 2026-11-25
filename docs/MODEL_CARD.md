@@ -17,7 +17,7 @@ Out of scope, by design: changing any record (grades, fees, attendance, applicat
 |---|---|---|---|
 | Model 1, direct | hosted `gpt-6-luna`, no documents | No: it opens with "I have not checked official university documents, so this may be inaccurate" | Working |
 | Model 2, RAG | the same hosted model plus retrieved passages with citations | Yes | Working, measured below |
-| Model 3, RAG + PEFT | an open model (`Qwen/Qwen3-4B-Instruct-2507`) with a LoRA adapter on a cloud endpoint, same retrieval and prompt as Model 2 | Yes | **Not trained or deployed.** Tooling exists; it needs the owner's Hugging Face, Colab and Modal accounts. Until then it reports "not configured" and never falls back to another model |
+| Model 3, RAG + PEFT | an open model (`Qwen/Qwen3-4B-Instruct-2507`) with a LoRA adapter on a cloud endpoint, same retrieval and prompt as Model 2 | Yes | **Adapter trained** (LoRA r=16, 344 examples, 2 epochs, one Colab T4 run; validation loss 0.224 on 27 examples), **not yet deployed or evaluated**. Until an endpoint exists it reports "not configured" and never falls back to another model |
 
 Applicant look-ups, the verification step and the email resend are deterministic code, not a model. A model only chooses a route (a single label from a fixed list) when the rules cannot, and never sees applicant data.
 

@@ -64,3 +64,6 @@ CLAUDE.local.md
 
 # Packaging output
 *.zip
+
+# Model 3 deployment settings (personal, not secret; the file is read by deploy/modal_vllm.py)
+deploy/*.local.json
